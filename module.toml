@@ -1,0 +1,34 @@
+[module]
+id            = "contacts"
+display_name  = "Contacts"
+version       = "0.1.0"
+description   = "Carnet d'adresses — contacts, groupes, CardDAV, annuaire d'instance"
+author        = "Kubuno Contributors"
+license       = "AGPL-3.0"
+runtime       = "rust"
+settings_path = "/contacts/settings"
+
+[process]
+entrypoint = "kubuno-contacts"
+args       = []
+
+[server]
+host = "127.0.0.1"
+port = 3110
+
+[routes]
+patterns = [
+    { method = "*", path = "/*" },
+]
+
+[[sidebar_items]]
+id       = "contacts"
+label    = "Contacts"
+icon     = "Users"
+path     = "/contacts"
+position = 40
+section  = "main"
+
+[events]
+subscribed = ["UserCreated", "UserUpdated", "UserDeleted", "MessageSent", "EventCreated"]
+publishes  = ["ContactCreated", "ContactUpdated", "ContactDeleted"]

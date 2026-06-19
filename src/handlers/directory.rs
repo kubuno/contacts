@@ -90,7 +90,7 @@ pub async fn add_to_contacts(
         given_name: None, middle_name: None, family_name: None,
         name_prefix: None, name_suffix: None, nickname: None,
         display_name: Some(display_name), organization: None,
-        department, job_title, avatar_color: None,
+        department, job_title, avatar_color: None, pronouns: None,
         emails, phones, addresses: vec![], urls: vec![],
         dates: vec![], relations: vec![], instant_messages: vec![],
         custom_fields: vec![], notes: None, is_starred: None,

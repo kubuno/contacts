@@ -130,6 +130,15 @@ async fn main() -> Result<()> {
         settings: Arc::new(settings.clone()),
     };
 
+    // Worker de rappels (anniversaires / relances) — notifie l'utilisateur via le core.
+    {
+        let worker_db       = state.db.clone();
+        let worker_settings = settings.clone();
+        tokio::spawn(async move {
+            kubuno_contacts::workers::reminder_worker::run(worker_db, worker_settings).await;
+        });
+    }
+
     // Enregistrement auprès du core (avec retry infini)
     let http = Client::new();
     register_with_core(&http, &settings).await;

@@ -39,6 +39,13 @@ pub struct Contact {
     pub trashed_at:      Option<DateTime<Utc>>,
     pub kubuno_user_id:  Option<Uuid>,
 
+    pub is_archived:         bool,
+    pub archived_at:         Option<DateTime<Utc>>,
+    pub is_blocked:          bool,
+    pub last_interaction_at: Option<DateTime<Utc>>,
+    pub interaction_count:   i32,
+    pub pronouns:            Option<String>,
+
     pub vcard_uid:       String,
     pub etag:            String,
     pub import_source:   String,
@@ -94,6 +101,7 @@ pub struct CreateContactDto {
     pub department:      Option<String>,
     pub job_title:       Option<String>,
     pub avatar_color:    Option<String>,
+    pub pronouns:        Option<String>,
     #[serde(default)]
     pub emails:          Vec<ContactField>,
     #[serde(default)]
@@ -127,6 +135,7 @@ pub struct UpdateContactDto {
     pub department:      Option<String>,
     pub job_title:       Option<String>,
     pub avatar_color:    Option<String>,
+    pub pronouns:        Option<String>,
     pub emails:          Option<Vec<ContactField>>,
     pub phones:          Option<Vec<ContactField>>,
     pub addresses:       Option<Vec<AddressField>>,
@@ -143,14 +152,30 @@ pub struct UpdateContactDto {
 pub struct ListContactsParams {
     pub q:          Option<String>,
     pub group_id:   Option<Uuid>,
+    pub label_id:   Option<Uuid>,
     pub starred:    Option<bool>,
     pub trashed:    Option<bool>,
+    pub archived:   Option<bool>,
+    /// One of: missing_email, missing_phone, missing_org, incomplete, has_email,
+    /// has_phone, no_group, no_label, blocked.
+    pub filter:     Option<String>,
+    /// One of: name, name_desc, first_name, recent, updated, organization, last_interaction.
+    pub sort:       Option<String>,
     pub limit:      Option<i64>,
     pub offset:     Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ContactsListResponse {
-    pub contacts: Vec<Contact>,
+    pub contacts: Vec<ContactWithLabels>,
     pub total:    i64,
+}
+
+/// A contact decorated with the ids of the labels attached to it (cheap join,
+/// so the UI can render label chips without a second round-trip).
+#[derive(Debug, Clone, Serialize)]
+pub struct ContactWithLabels {
+    #[serde(flatten)]
+    pub contact: Contact,
+    pub label_ids: Vec<Uuid>,
 }

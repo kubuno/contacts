@@ -1,5 +1,12 @@
 pub mod contacts;
 pub mod groups;
+pub mod labels;
+pub mod bulk;
+pub mod reminders;
+pub mod interactions;
+pub mod shares;
+pub mod settings;
+pub mod carddav;
 pub mod import_export;
 pub mod directory;
 pub mod health;

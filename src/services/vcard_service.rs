@@ -142,7 +142,7 @@ fn fields_to_dto(fields: &[(String, String, String)]) -> Option<CreateContactDto
         given_name: None, middle_name: None, family_name: None,
         name_prefix: None, name_suffix: None, nickname: None,
         display_name: None, organization: None, department: None,
-        job_title: None, avatar_color: None,
+        job_title: None, avatar_color: None, pronouns: None,
         emails: vec![], phones: vec![], addresses: vec![],
         urls: vec![], dates: vec![], relations: vec![],
         instant_messages: vec![], custom_fields: vec![],

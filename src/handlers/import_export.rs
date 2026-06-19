@@ -29,14 +29,19 @@ pub async fn export_vcf(
     let list_params = ListContactsParams {
         q:        None,
         group_id: params.group_id,
+        label_id: None,
         starred:  params.starred,
         trashed:  Some(false),
+        archived: None,
+        filter:   None,
+        sort:     None,
         limit:    Some(10000),
         offset:   Some(0),
     };
 
     let result = contact_service::list_contacts(&state.db, user.id, &list_params).await?;
-    let vcf = vcard_service::contacts_to_vcf(&result.contacts);
+    let contacts: Vec<_> = result.contacts.into_iter().map(|c| c.contact).collect();
+    let vcf = vcard_service::contacts_to_vcf(&contacts);
 
     Ok((
         [
@@ -44,6 +49,61 @@ pub async fn export_vcf(
             (header::CONTENT_DISPOSITION, "attachment; filename=\"contacts.vcf\""),
         ],
         vcf,
+    ).into_response())
+}
+
+/// Exports contacts as a CSV with columns broadly compatible with Google /
+/// Outlook imports.
+pub async fn export_csv(
+    State(state): State<AppState>,
+    Extension(user): Extension<ContactsUser>,
+    Query(params): Query<ExportParams>,
+) -> Result<Response> {
+    let list_params = ListContactsParams {
+        q: None, group_id: params.group_id, label_id: None, starred: params.starred,
+        trashed: Some(false), archived: None, filter: None, sort: None,
+        limit: Some(10000), offset: Some(0),
+    };
+    let result = contact_service::list_contacts(&state.db, user.id, &list_params).await?;
+
+    let mut wtr = csv::Writer::from_writer(vec![]);
+    wtr.write_record([
+        "First Name", "Last Name", "Display Name", "Nickname", "Organization",
+        "Department", "Job Title", "Email", "Phone", "Address", "Notes",
+    ])
+    .map_err(|e| ContactsError::Internal(e.into()))?;
+
+    for cwl in &result.contacts {
+        let c = &cwl.contact;
+        let email = c.emails.0.first().map(|e| e.value.clone()).unwrap_or_default();
+        let phone = c.phones.0.first().map(|p| p.value.clone()).unwrap_or_default();
+        let address = c.addresses.0.first().map(|a| {
+            [a.street.as_deref(), a.city.as_deref(), a.postcode.as_deref(), a.country.as_deref()]
+                .into_iter().flatten().collect::<Vec<_>>().join(", ")
+        }).unwrap_or_default();
+        wtr.write_record([
+            c.given_name.clone().unwrap_or_default(),
+            c.family_name.clone().unwrap_or_default(),
+            c.display_name.clone(),
+            c.nickname.clone().unwrap_or_default(),
+            c.organization.clone().unwrap_or_default(),
+            c.department.clone().unwrap_or_default(),
+            c.job_title.clone().unwrap_or_default(),
+            email,
+            phone,
+            address,
+            c.notes.clone().unwrap_or_default(),
+        ])
+        .map_err(|e| ContactsError::Internal(e.into()))?;
+    }
+
+    let data = wtr.into_inner().map_err(|e| ContactsError::Internal(e.into()))?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+            (header::CONTENT_DISPOSITION, "attachment; filename=\"contacts.csv\""),
+        ],
+        data,
     ).into_response())
 }
 
@@ -137,6 +197,7 @@ pub async fn import_csv(
             department:       get("Department"),
             job_title:        get("Job Title").or_else(|| get("Title")),
             avatar_color:     None,
+            pronouns:         None,
             emails:           get("Email Address").or_else(|| get("E-mail Address")).or_else(|| get("email"))
                 .map(|e| vec![crate::models::contact::ContactField {
                     label: None, value: e, field_type: "work".into()

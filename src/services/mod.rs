@@ -1,3 +1,11 @@
 pub mod contact_service;
 pub mod vcard_service;
 pub mod avatar_service;
+pub mod label_service;
+pub mod reminder_service;
+pub mod interaction_service;
+pub mod share_service;
+pub mod settings_service;
+pub mod stats_service;
+pub mod carddav_service;
+pub mod core_client;

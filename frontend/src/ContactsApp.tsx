@@ -42,8 +42,8 @@ function ContactRow({ contact, isSelected, isChecked, onClick }: {
       onClick={onClick}
       onContextMenu={e => open(e, contact)}
       className={`w-full grid items-center px-4 py-2 hover:bg-surface-1 transition-colors group text-left cursor-pointer
+                  grid-cols-[36px_40px_1fr] sm:grid-cols-[36px_40px_1.4fr_1.4fr_1fr]
                   ${isSelected ? 'bg-primary-light' : isChecked ? 'bg-primary-light/40' : ''}`}
-      style={{ gridTemplateColumns: '36px 40px 1.4fr 1.4fr 1fr' }}
     >
       <div className={isChecked ? '' : 'opacity-0 group-hover:opacity-100'}><RowCheckbox contact={contact} checked={isChecked} /></div>
       <ContactAvatar contact={contact} size="sm" />
@@ -51,8 +51,8 @@ function ContactRow({ contact, isSelected, isChecked, onClick }: {
         {contact.display_name || t('no_name')}
         <LabelChips labelIds={contact.label_ids} />
       </span>
-      <span className="text-sm text-text-secondary truncate pr-4">{email}</span>
-      <span className="text-sm text-text-secondary truncate">{phone}</span>
+      <span className="hidden sm:block text-sm text-text-secondary truncate pr-4">{email}</span>
+      <span className="hidden sm:block text-sm text-text-secondary truncate">{phone}</span>
     </div>
   )
 }
@@ -83,7 +83,23 @@ export default function ContactsApp() {
   return <ContactMenuProvider><ContactsAppInner /></ContactMenuProvider>
 }
 
+// Pilotage responsive en JS (matchMedia) car les variantes `sm:` d'un module qui
+// annulent une classe de base (w-full→sm:w-56…) sont écrasées par l'utilitaire de
+// base du host (couche utilities > kubuno-module).
+function useIsMobile(): boolean {
+  const [m, setM] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const on = () => setM(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return m
+}
+
 function ContactsAppInner() {
+  const isMobile = useIsMobile()
   const { t } = useTranslation('contacts')
   const { open: openContactMenu } = useContactMenu()
   const s = useContactsStore()
@@ -177,22 +193,22 @@ function ContactsAppInner() {
     <div className="flex-1 flex overflow-hidden">
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-6 pt-4 pb-2 flex items-center gap-3 flex-shrink-0">
-          <h1 className="text-2xl font-normal text-text-primary">
+        <div className={`${isMobile ? 'px-4' : 'px-6'} pt-4 pb-2 flex items-center flex-wrap gap-x-3 gap-y-2 flex-shrink-0`}>
+          <h1 className="text-2xl font-normal text-text-primary truncate">
             {title}{total > 0 && <span className="text-text-secondary ml-2 text-xl">({total})</span>}
           </h1>
           <div className="flex-1" />
-          {/* Search */}
-          <div className="relative">
+          {/* Search — pleine largeur sur mobile (passe à la ligne), fixe ensuite */}
+          <div className={`relative no-print ${isMobile ? 'w-full' : 'w-auto'}`}>
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input value={searchLocal} onChange={e => onSearchChange(e.target.value)}
               placeholder={t('contacts_search_ph')} title={t('search_help')}
-              className="pl-9 pr-3 py-2 w-56 rounded-full bg-surface-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              className={`pl-9 pr-3 py-2 ${isMobile ? 'w-full' : 'w-56'} rounded-full bg-surface-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30`} />
           </div>
         </div>
 
         {/* Toolbar */}
-        <div className="px-6 pb-1 flex items-center gap-1 flex-shrink-0">
+        <div className="px-6 pb-1 flex items-center gap-1 flex-shrink-0 no-print">
           <ToolBtn icon={<ArrowDownUp size={15} />} label={t('sort_by')} onClick={openSortMenu} />
           <ToolBtn icon={<Filter size={15} />} label={t('filter_label')} onClick={openFilterMenu} active={!!s.filter} />
           <div className="flex-1" />
@@ -231,8 +247,8 @@ function ContactsAppInner() {
                 <tr className="text-left text-text-secondary">
                   <th className="px-4 py-2 font-medium">{t('col_name')}</th>
                   <th className="px-4 py-2 font-medium">{t('col_email')}</th>
-                  <th className="px-4 py-2 font-medium">{t('col_phone')}</th>
-                  <th className="px-4 py-2 font-medium">{t('sort_org')}</th>
+                  <th className={`${isMobile ? 'hidden' : ''} px-4 py-2 font-medium`}>{t('col_phone')}</th>
+                  <th className={`${isMobile ? 'hidden' : ''} px-4 py-2 font-medium`}>{t('sort_org')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -242,8 +258,8 @@ function ContactsAppInner() {
                     className={`cursor-pointer hover:bg-surface-1 border-b border-border/50 ${c.id === selectedId ? 'bg-primary-light' : selectedIds.has(c.id) ? 'bg-primary-light/40' : ''}`}>
                     <td className="px-4 py-2 flex items-center gap-2"><RowCheckbox contact={c} checked={selectedIds.has(c.id)} />{c.display_name || t('no_name')}</td>
                     <td className="px-4 py-2 text-text-secondary">{c.emails[0]?.value ?? ''}</td>
-                    <td className="px-4 py-2 text-text-secondary">{c.phones[0]?.value ?? ''}</td>
-                    <td className="px-4 py-2 text-text-secondary">{c.organization ?? ''}</td>
+                    <td className={`${isMobile ? 'hidden' : ''} px-4 py-2 text-text-secondary`}>{c.phones[0]?.value ?? ''}</td>
+                    <td className={`${isMobile ? 'hidden' : ''} px-4 py-2 text-text-secondary`}>{c.organization ?? ''}</td>
                   </tr>
                 ))}
               </tbody>
@@ -251,11 +267,11 @@ function ContactsAppInner() {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto">
-            <div className="grid px-4 py-2 border-b border-border sticky top-0 bg-white z-10" style={{ gridTemplateColumns: '36px 40px 1.4fr 1.4fr 1fr' }}>
+            <div className="grid px-4 py-2 border-b border-border sticky top-0 bg-white z-10 grid-cols-[36px_40px_1fr] sm:grid-cols-[36px_40px_1.4fr_1.4fr_1fr]">
               <div /><div />
               <span className="text-sm font-medium text-text-secondary">{t('col_name')}</span>
-              <span className="text-sm font-medium text-text-secondary">{t('col_email')}</span>
-              <span className="text-sm font-medium text-text-secondary">{t('col_phone')}</span>
+              <span className="hidden sm:block text-sm font-medium text-text-secondary">{t('col_email')}</span>
+              <span className="hidden sm:block text-sm font-medium text-text-secondary">{t('col_phone')}</span>
             </div>
             {sortedKeys.map(letter => (
               <div key={letter}>
@@ -278,8 +294,14 @@ function ContactsAppInner() {
 }
 
 function DetailPanel({ contact, onClose }: { contact: Contact; onClose: () => void }) {
+  const isMobile = useIsMobile()
   return (
-    <div className="flex-shrink-0 border-l border-border overflow-y-auto" style={{ width: 380 }}>
+    // Plein écran (overlay) sur mobile ; panneau latéral 380px sur desktop.
+    // matchMedia (pas `md:`) car `fixed`/`w-full` du host écrasent les variantes
+    // responsives du module (couche utilities > kubuno-module).
+    <div className={isMobile
+      ? 'fixed inset-0 z-30 bg-white overflow-y-auto'
+      : 'flex-shrink-0 w-[380px] border-l border-border bg-white overflow-y-auto'}>
       <div className="relative">
         <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-2 text-text-secondary z-10"><X size={16} /></button>
         <ContactDetail contact={contact} />

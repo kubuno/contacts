@@ -9,6 +9,7 @@ import {
   RouteRegistry,
   WaffleAppRegistry,
   FaviconRegistry,
+  ModuleSettingsRegistry,
   useSidebarStore,
   useSearchStore,
   useToolbarStore,
@@ -24,6 +25,9 @@ export const sdkVersion = SDK_VERSION
 
 export function register() {
   FaviconRegistry.register('contacts', '/contacts-logo.svg')
+
+  // The header gear button opens the per-user Contacts settings while in /contacts.
+  ModuleSettingsRegistry.register('contacts')
 
   WaffleAppRegistry.register('contacts', 'Contacts', [
     { id: 'contacts', label: 'Contacts', Icon: ContactsLogo, path: '/contacts' },
@@ -50,10 +54,18 @@ export function register() {
     onSearch:    (q) => useContactsStore.getState().setSearchQuery(q),
   })
 
+  // Bare toolbar on the settings page (no module toolbar there).
+  useToolbarStore.getState().register({
+    moduleId:    'contacts-settings',
+    routePrefix: '/contacts/settings',
+  })
+
   // Routes
-  const ContactsApp = lazy(() => import('./ContactsApp'))
+  const ContactsApp          = lazy(() => import('./ContactsApp'))
+  const ContactsSettingsPage = lazy(() => import('./ContactsSettingsPage'))
 
   RouteRegistry.register('contacts',         ContactsApp)
   RouteRegistry.register('contacts/starred', ContactsApp)
   RouteRegistry.register('contacts/trashed', ContactsApp)
+  RouteRegistry.register('contacts/settings', ContactsSettingsPage)
 }

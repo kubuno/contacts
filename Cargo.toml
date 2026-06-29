@@ -1,6 +1,6 @@
 [package]
 name        = "kubuno-contacts"
-version     = "0.1.0-alpha"
+version     = "0.1.2"
 edition     = "2021"
 description = "Kubuno Contacts — carnet d'adresses, groupes, CardDAV, annuaire d'instance"
 license     = "AGPL-3.0"
@@ -48,7 +48,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 [workspace]
 
 [workspace.package]
-version      = "0.1.0-alpha"
+version      = "0.1.2"
 edition      = "2021"
 authors      = ["Kubuno Contributors"]
 license      = "AGPL-3.0"

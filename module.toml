@@ -1,7 +1,7 @@
 [module]
 id            = "contacts"
 display_name  = "Contacts"
-version       = "0.1.0"
+version       = "0.1.2"
 description   = "Carnet d'adresses — contacts, groupes, CardDAV, annuaire d'instance"
 author        = "Kubuno Contributors"
 license       = "AGPL-3.0"

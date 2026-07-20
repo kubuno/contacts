@@ -7,7 +7,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     handlers::{
-        bulk, carddav, contacts, directory, events, groups, health, import_export, interactions,
+        bulk, carddav, contacts, delta, directory, events, groups, health, import_export, interactions,
         labels, reminders, settings, shares,
     },
     middleware::require_auth,
@@ -16,6 +16,11 @@ use crate::{
 
 pub fn build(state: AppState) -> Router {
     let authed = Router::new()
+        // Sync deltas (local-first)
+        .route("/contacts/delta",  get(delta::contacts_delta))
+        .route("/labels/delta",    get(delta::labels_delta))
+        .route("/groups/delta",    get(delta::groups_delta))
+        .route("/reminders/delta", get(delta::reminders_delta))
         // Contacts CRUD
         .route("/contacts",                   get(contacts::list).post(contacts::create))
         .route("/contacts/bulk",              post(bulk::bulk))

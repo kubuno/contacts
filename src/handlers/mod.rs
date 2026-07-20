@@ -1,3 +1,4 @@
+pub mod delta;
 pub mod contacts;
 pub mod groups;
 pub mod labels;

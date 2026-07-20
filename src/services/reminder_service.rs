@@ -41,8 +41,8 @@ pub async fn create_reminder(db: &PgPool, owner_id: Uuid, dto: &CreateReminderDt
     }
 
     sqlx::query_as::<_, Reminder>(
-        "INSERT INTO contacts.reminders (owner_id, contact_id, kind, message, remind_at, recurrence)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        "INSERT INTO contacts.reminders (id, owner_id, contact_id, kind, message, remind_at, recurrence)
+         VALUES (COALESCE($7, uuid_generate_v4()), $1, $2, $3, $4, $5, $6)
          RETURNING *",
     )
     .bind(owner_id)
@@ -51,6 +51,7 @@ pub async fn create_reminder(db: &PgPool, owner_id: Uuid, dto: &CreateReminderDt
     .bind(&dto.message)
     .bind(dto.remind_at)
     .bind(dto.recurrence.as_deref().unwrap_or("none"))
+    .bind(dto.id)
     .fetch_one(db)
     .await
     .map_err(ContactsError::Database)

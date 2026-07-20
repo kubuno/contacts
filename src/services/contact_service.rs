@@ -262,11 +262,11 @@ pub async fn create_contact(
 
     sqlx::query_as::<_, Contact>(
         "INSERT INTO contacts.contacts
-         (owner_id, given_name, middle_name, family_name, name_prefix, name_suffix,
+         (id, owner_id, given_name, middle_name, family_name, name_prefix, name_suffix,
           nickname, display_name, organization, department, job_title, avatar_color,
           emails, phones, addresses, urls, dates, relations, instant_messages,
           custom_fields, notes, is_starred, pronouns)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+         VALUES (COALESCE($24, uuid_generate_v4()), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                  $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
          RETURNING *",
     )
@@ -279,6 +279,7 @@ pub async fn create_contact(
     .bind(emails).bind(phones).bind(addresses).bind(urls)
     .bind(dates).bind(relations).bind(ims).bind(custom)
     .bind(&dto.notes).bind(dto.is_starred.unwrap_or(false)).bind(&dto.pronouns)
+    .bind(dto.id)
     .fetch_one(db).await.map_err(ContactsError::Database)
 }
 

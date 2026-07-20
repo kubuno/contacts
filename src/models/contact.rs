@@ -90,6 +90,9 @@ pub struct CustomField {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateContactDto {
+    /// Optional client-minted id (local-first sync replay) — honoured verbatim.
+    #[serde(default)]
+    pub id: Option<Uuid>,
     pub given_name:      Option<String>,
     pub middle_name:     Option<String>,
     pub family_name:     Option<String>,

@@ -16,6 +16,9 @@ pub struct Group {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateGroupDto {
+    /// Optional client-minted id (local-first sync replay) — honoured verbatim.
+    #[serde(default)]
+    pub id: Option<Uuid>,
     pub name:  String,
     pub color: Option<String>,
 }

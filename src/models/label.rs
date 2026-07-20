@@ -20,6 +20,9 @@ pub struct Label {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateLabelDto {
+    /// Optional client-minted id (local-first sync replay) — honoured verbatim.
+    #[serde(default)]
+    pub id: Option<Uuid>,
     pub name:  String,
     pub color: Option<String>,
     pub icon:  Option<String>,

@@ -34,6 +34,9 @@ pub struct ReminderWithContact {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateReminderDto {
+    /// Optional client-minted id (local-first sync replay) — honoured verbatim.
+    #[serde(default)]
+    pub id: Option<Uuid>,
     pub contact_id: Uuid,
     pub kind:       Option<String>,
     pub message:    Option<String>,

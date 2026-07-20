@@ -186,6 +186,7 @@ pub async fn import_csv(
         };
 
         let dto = crate::models::contact::CreateContactDto {
+        id: None,
             given_name:       get("First Name").or_else(|| get("given_name")),
             family_name:      get("Last Name").or_else(|| get("family_name")),
             middle_name:      get("Middle Name"),

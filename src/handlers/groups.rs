@@ -48,11 +48,12 @@ pub async fn create(
     }
 
     let group = sqlx::query_as::<_, crate::models::group::Group>(
-        "INSERT INTO contacts.groups (owner_id, name, color) VALUES ($1, $2, $3) RETURNING *",
+        "INSERT INTO contacts.groups (id, owner_id, name, color) VALUES (COALESCE($4, uuid_generate_v4()), $1, $2, $3) RETURNING *",
     )
     .bind(user.id)
     .bind(dto.name.trim())
     .bind(dto.color.as_deref().unwrap_or("#1a73e8"))
+    .bind(dto.id)
     .fetch_one(&state.db).await
     .map_err(|e| match e {
         sqlx::Error::Database(ref d) if d.constraint() == Some("groups_owner_id_name_key") =>
@@ -128,7 +129,7 @@ pub async fn add_members(
 ) -> Result<Json<Value>> {
     // Verify group ownership
     sqlx::query_scalar::<_, i64>(
-        "SELECT 1 FROM contacts.groups WHERE id = $1 AND owner_id = $2",
+        "SELECT 1::bigint FROM contacts.groups WHERE id = $1 AND owner_id = $2",
     )
     .bind(id).bind(user.id)
     .fetch_optional(&state.db).await.map_err(ContactsError::Database)?
@@ -151,7 +152,7 @@ pub async fn remove_member(
     Path((id, contact_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Value>> {
     sqlx::query_scalar::<_, i64>(
-        "SELECT 1 FROM contacts.groups WHERE id = $1 AND owner_id = $2",
+        "SELECT 1::bigint FROM contacts.groups WHERE id = $1 AND owner_id = $2",
     )
     .bind(id).bind(user.id)
     .fetch_optional(&state.db).await.map_err(ContactsError::Database)?

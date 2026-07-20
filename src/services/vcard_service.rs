@@ -139,6 +139,7 @@ pub fn parse_vcf(vcf: &str) -> Vec<CreateContactDto> {
 
 fn fields_to_dto(fields: &[(String, String, String)]) -> Option<CreateContactDto> {
     let mut dto = CreateContactDto {
+        id: None,
         given_name: None, middle_name: None, family_name: None,
         name_prefix: None, name_suffix: None, nickname: None,
         display_name: None, organization: None, department: None,

@@ -87,6 +87,7 @@ pub async fn add_to_contacts(
     } else { vec![] };
 
     let dto = crate::models::contact::CreateContactDto {
+        id: None,
         given_name: None, middle_name: None, family_name: None,
         name_prefix: None, name_suffix: None, nickname: None,
         display_name: Some(display_name), organization: None,

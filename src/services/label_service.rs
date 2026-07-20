@@ -28,8 +28,8 @@ pub async fn create_label(db: &PgPool, owner_id: Uuid, dto: &CreateLabelDto) -> 
         return Err(ContactsError::Validation("Le nom de l'étiquette est requis".into()));
     }
     sqlx::query_as::<_, Label>(
-        "INSERT INTO contacts.labels (owner_id, name, color, icon, position)
-         VALUES ($1, $2, $3, $4,
+        "INSERT INTO contacts.labels (id, owner_id, name, color, icon, position)
+         VALUES (COALESCE($5, uuid_generate_v4()), $1, $2, $3, $4,
                  COALESCE((SELECT MAX(position) + 1 FROM contacts.labels WHERE owner_id = $1), 0))
          RETURNING *, 0::bigint AS contact_count",
     )
@@ -37,6 +37,7 @@ pub async fn create_label(db: &PgPool, owner_id: Uuid, dto: &CreateLabelDto) -> 
     .bind(name)
     .bind(dto.color.as_deref().unwrap_or("#5f6368"))
     .bind(&dto.icon)
+    .bind(dto.id)
     .fetch_one(db)
     .await
     .map_err(|e| match e {

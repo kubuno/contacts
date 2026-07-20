@@ -2,12 +2,14 @@ import { createContext, useContext, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Edit2, Star, StarOff, Tag, Users, Share2, Download, Archive, ArchiveRestore,
-  Ban, Trash2, RotateCcw, Bell,
+  Ban, Trash2, RotateCcw, Bell, Copy,
 } from 'lucide-react'
 import { MenuDropdown, type MenuItem, type MenuDropdownPos } from '@ui'
 import { Contact, contactsApi } from './api'
 import { useContactsStore } from './store'
 import ShareModal from './ShareModal'
+import { copyKubunoData, openLabelPicker } from './kubunoData'
+import { contactEnvelope } from './ContactsDataCard'
 
 interface Ctx { open: (e: React.MouseEvent, contact: Contact) => void }
 const ContactMenuContext = createContext<Ctx>({ open: () => {} })
@@ -87,6 +89,10 @@ export function ContactMenuProvider({ children }: { children: React.ReactNode })
     if (!multi) {
       items.push(
         { type: 'action', label: t('det_share'), icon: <Share2 size={15} />, onClick: () => setShareId(contact.id) },
+        // Cross-module copy: JSON envelope pasteable as a rich card in chat, notes…
+        { type: 'action', label: t('copy_card', { defaultValue: 'Copier pour Kubuno' }), icon: <Copy size={15} />, onClick: () => { copyKubunoData(contactEnvelope(contact)).catch(() => {}) } },
+        // Cross-module labels (core-managed, browsable at /labels).
+        { type: 'action', label: t('kubuno_labels', { defaultValue: 'Étiquettes Kubuno…' }), icon: <Tag size={15} />, onClick: () => { openLabelPicker(contactEnvelope(contact)).catch(() => {}) } },
         {
           type: 'action', label: t('bday_remind'), icon: <Bell size={15} />,
           onClick: async () => {

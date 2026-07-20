@@ -116,13 +116,28 @@ function ContactsAppInner() {
 
   useEffect(() => { fetchContacts(); fetchGroups(); fetchLabels(); fetchDueCount() }, [])
 
+  // Deep link `?contact=<id>` (used by cross-module data cards): opens the detail
+  // panel, fetching the contact when it is not part of the current list.
+  const [deepContact, setDeepContact] = useState<Contact | null>(null)
+  useEffect(() => {
+    const cid = new URLSearchParams(window.location.search).get('contact')
+    if (!cid) { setDeepContact(null); return }
+    setSelectedId(cid)
+    let cancelled = false
+    contactsApi.getContact(cid)
+      .then(r => { if (!cancelled) setDeepContact(r.data.contact) })
+      .catch(() => { if (!cancelled) setDeepContact(null) })
+    return () => { cancelled = true }
+  }, [setSelectedId])
+
   function onSearchChange(v: string) {
     setSearchLocal(v)
     clearTimeout(debRef.current)
     debRef.current = setTimeout(() => setSearchQuery(v), 250)
   }
 
-  const selected = contacts.find(c => c.id === selectedId) ?? null
+  const selected = contacts.find(c => c.id === selectedId)
+    ?? (deepContact && deepContact.id === selectedId ? deepContact : null)
 
   // Routed full-area views
   if (editorOpen) return <div className="flex-1 overflow-hidden"><ContactEditor onDone={() => { setEditorOpen(false); fetchContacts() }} /></div>

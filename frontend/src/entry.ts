@@ -10,6 +10,8 @@ import {
   WaffleAppRegistry,
   FaviconRegistry,
   ModuleSettingsRegistry,
+  ModuleServiceRegistry,
+  SlotRegistry,
   useSidebarStore,
   useSearchStore,
   useToolbarStore,
@@ -20,11 +22,35 @@ import './i18n'
 import { useContactsStore } from './store'
 import ContactsLogo from './ContactsLogo'
 import ContactsSidebarBody from './ContactsSidebarBody'
+import ContactsDataCard from './ContactsDataCard'
+import ContactPickerDialog from './ContactPickerDialog'
+import { pickContact } from './contactPickerStore'
+import { registerDataCardRenderer } from './kubunoData'
 
 export const sdkVersion = SDK_VERSION
 
 export function register() {
   FaviconRegistry.register('contacts', '/contacts-logo.svg')
+
+  // Contact picker, mounted globally by the host shell: any module can open it
+  // without navigating to /contacts.
+  SlotRegistry.register('app-dialogs', 'contacts', ContactPickerDialog)
+
+  // Services contacts offers to OTHER modules (chat…). Published only while
+  // contacts is installed+active → consumers degrade gracefully when absent.
+  //   pickContact(opts?: { title?: string }): Promise<KubunoDataEnvelope | null>
+  ModuleServiceRegistry.publish('contacts', {
+    pickContact,
+  })
+
+  // `contacts.contact` JSON envelopes ("Copier pour Kubuno" in the contact menu,
+  // or the pickContact service): consumer modules (chat, notes…) resolve this
+  // card through `core.data-card`. `contacts.person` = legacy type, kept so
+  // envelopes copied before the rename still render.
+  registerDataCardRenderer('contacts', {
+    types: ['contacts.contact', 'contacts.person'],
+    Component: ContactsDataCard,
+  })
 
   // The header gear button opens the per-user Contacts settings while in /contacts.
   ModuleSettingsRegistry.register('contacts')

@@ -2,14 +2,16 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Users, ArrowLeft, ExternalLink, Check, Copy } from 'lucide-react'
-import { Toggle, Button, Radio } from '@ui'
+import { Toggle, Button, Radio, useSaveShortcut} from '@ui'
 import { useModulePrefs } from './userPrefs'
 import { contactsApi } from './api'
 import { useCopy } from './widgets'
 
 // ── Per-user preferences (backend, cross-device via core users.preferences) ─────
 
-interface ContactsPrefs {
+// `type`, not `interface`: only a type alias gets the implicit index signature
+// that `useModulePrefs<T extends Record<string, unknown>>` requires.
+type ContactsPrefs = {
   sort:        string   // 'first' | 'last'
   nameFormat:  string   // 'first_last' | 'last_first'
   defaultView: string   // 'list' | 'grid'
@@ -61,6 +63,9 @@ function PreferencesTab() {
 
   const set = <K extends keyof ContactsPrefs>(key: K, value: ContactsPrefs[K]) =>
     setPrefs(p => ({ ...p, [key]: value }))
+
+  // Ctrl+S saves immediately (disabled while a save is in flight).
+  useSaveShortcut(() => { void save() }, !busy)
 
   const save = async () => {
     setBusy(true)

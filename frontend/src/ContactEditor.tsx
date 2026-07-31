@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { pickImageFile } from '@kubuno/sdk'
 import { Plus, Trash2, X, Check } from 'lucide-react'
 import { Dropdown, Button, DatePicker, Input as UiInput, Textarea } from '@ui'
 import { Contact, ContactField, AddressField, contactsApi } from './api'
@@ -100,8 +101,7 @@ export default function ContactEditor({ contact, onDone }: Props) {
     }
   }
 
-  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+  function useAvatarFile(file: File | null) {
     if (!file) return
     setAvatarFile(file)
     const reader = new FileReader()
@@ -132,13 +132,13 @@ export default function ContactEditor({ contact, onDone }: Props) {
       <div className="p-6 space-y-6 max-w-xl">
         {/* Avatar + color */}
         <div className="flex items-center gap-4">
-          <label className="cursor-pointer relative group">
+          <button type="button" className="cursor-pointer relative group"
+            onClick={() => { void pickImageFile({ title: t('contacts_photo') }).then(useAvatarFile) }}>
             <ContactAvatar contact={fakeContact} size="xl" />
             <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
               <span className="text-white text-xs">{t('contacts_photo')}</span>
             </div>
-            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-          </label>
+          </button>
           <div>
             <p className="text-xs text-text-secondary mb-2">{t('contacts_color')}</p>
             <div className="flex flex-wrap gap-1.5">

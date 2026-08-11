@@ -5,6 +5,7 @@
  * `sdkVersion` permet de rejeter une incompatibilité de contrat.
  */
 import { lazy } from 'react'
+import { Users as ContactsIcon } from 'lucide-react'
 import {
   RouteRegistry,
   WaffleAppRegistry,
@@ -12,16 +13,20 @@ import {
   ModuleSettingsRegistry,
   ModuleServiceRegistry,
   SlotRegistry,
+  registerMentionProvider,
   useSidebarStore,
   useSearchStore,
   useToolbarStore,
+  useRightPanelStore,
   SDK_VERSION,
 } from '@kubuno/sdk'
 import './index.css'
 import './i18n'
 import { useContactsStore } from './store'
+import { contactsApi } from './api'
 import ContactsLogo from './ContactsLogo'
 import ContactsSidebarBody from './ContactsSidebarBody'
+import ContactsMiniPanel from './ContactsMiniPanel'
 import ContactsDataCard from './ContactsDataCard'
 import ContactPickerDialog from './ContactPickerDialog'
 import { pickContact } from './contactPickerStore'
@@ -41,6 +46,32 @@ export function register() {
   //   pickContact(opts?: { title?: string }): Promise<KubunoDataEnvelope | null>
   ModuleServiceRegistry.publish('contacts', {
     pickContact,
+  })
+
+  // @mention provider: any @ui field with `mentions` enabled discovers this via
+  // the shared 'mentions.provider' extension point and suggests contacts as the
+  // user types « @… ». Registered only while contacts is installed+active, so a
+  // field degrades to plain text when contacts is absent. Reuses the same list
+  // endpoint the mail recipient autocomplete already relies on.
+  registerMentionProvider('contacts', {
+    id:      'contacts',
+    trigger: '@',
+    async search(query, opts) {
+      const { data } = await contactsApi.listContacts({
+        q: query, limit: opts?.limit ?? 6, filter: 'has_email',
+      })
+      return data.contacts.map(c => {
+        const email = c.emails?.[0]?.value
+        return {
+          id:           c.id,
+          label:        c.display_name,
+          secondary:    email,
+          avatarUrl:    c.avatar_path ? contactsApi.avatarUrl(c.id) : undefined,
+          email,
+          kubunoUserId: c.kubuno_user_id ?? undefined,
+        }
+      })
+    },
   })
 
   // `contacts.contact` JSON envelopes ("Copier pour Kubuno" in the contact menu,
@@ -78,6 +109,15 @@ export function register() {
     placeholder: 'Rechercher dans les contacts…',
     placeholderKey: 'contacts:contacts_search_ph',
     onSearch:    (q) => useContactsStore.getState().setSearchQuery(q),
+  })
+
+  // Side panel: look a contact up without leaving whatever you are writing.
+  useRightPanelStore.getState().registerEntry({
+    moduleId:       'contacts',
+    icon:           ContactsLogo,
+    label:          'Contacts',
+    panelComponent: ContactsMiniPanel,
+    openPath:       '/contacts',
   })
 
   // Bare toolbar on the settings page (no module toolbar there).

@@ -25,6 +25,7 @@ A module for [Kubuno](https://github.com/kubuno/core), the self-hosted, libre (A
 - **Instance directory** — browse the other users of your Kubuno instance and add them to your contacts in one click.
 - **Sharing** — share a contact with other users of the instance, or through a public link.
 - **Cross-module integration** — other Kubuno modules can open a globally-mounted **contact picker** (published on the core's service registry, with graceful degradation when Contacts is not installed), and a contact copied with "Copy for Kubuno" pastes as a **rich contact card** in consumer modules such as Chat or Notes. Contacts also plugs into the core's cross-module labels.
+- **@mention provider** — Contacts publishes a mention provider on the core's extension registry, so typing `@` in any mention-enabled text field across the platform (a mail body, a comment, a rich-text editor…) suggests your contacts with avatar and email and inserts them as a removable chip — with the same graceful degradation when Contacts is absent.
 - **Delta sync** — cursor-based `/delta` endpoints (contacts, labels, groups, reminders) with monotonic change sequences and tombstones, powering incremental pulls by local-first clients; client-minted IDs are honoured on create for offline replay.
 - **Per-user settings** — each user tunes the module from a dedicated settings page.
 

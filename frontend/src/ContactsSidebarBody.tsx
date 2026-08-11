@@ -102,7 +102,7 @@ export default function ContactsSidebarBody({ collapsed = false }: { collapsed?:
         </div>
       )}
 
-      <nav className={`flex-1 overflow-y-auto space-y-0.5 ${collapsed ? 'px-2' : 'px-3'}`}>
+      <nav className={`flex-1 overflow-y-auto space-y-0.5 px-2`}>
         <Nav label={t('title_all')} icon={<Users size={20} />} active={view === 'all'} to={hashTo('all')} badge={total} />
         <Nav label={t('title_starred')} icon={<Star size={20} />} active={view === 'starred'} to={hashTo('starred')} />
 

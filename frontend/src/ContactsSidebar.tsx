@@ -59,7 +59,8 @@ export default function ContactsSidebar() {
 
       <div className="px-3 mt-2">
         <div className="flex items-center justify-between px-1 mb-1">
-          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">{t('groups')}</span>
+          {/* Sidebar section headings: 14px bold, no forced caps, no letter-spacing. */}
+          <span className="text-sm font-bold text-text-secondary">{t('groups')}</span>
           <button onClick={() => setShowNewGroup(v => !v)} className="p-0.5 rounded hover:bg-surface-2 text-text-secondary">
             <Plus size={14} />
           </button>

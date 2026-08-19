@@ -26,6 +26,9 @@ pub async fn export_vcf(
     Extension(user): Extension<ContactsUser>,
     Query(params): Query<ExportParams>,
 ) -> Result<Response> {
+    // How many records an export may write is an instance setting: a full
+    // address book leaving in one file is exactly what an administrator may want
+    // to bound.
     let list_params = ListContactsParams {
         q:        None,
         group_id: params.group_id,
@@ -35,11 +38,13 @@ pub async fn export_vcf(
         archived: None,
         filter:   None,
         sort:     None,
-        limit:    Some(10000),
+        limit:    Some(state.instance().export_max_rows),
         offset:   Some(0),
     };
 
-    let result = contact_service::list_contacts(&state.db, user.id, &list_params).await?;
+    let result = contact_service::list_contacts_capped(
+        &state.db, user.id, &list_params, state.instance().export_max_rows,
+    ).await?;
     let contacts: Vec<_> = result.contacts.into_iter().map(|c| c.contact).collect();
     let vcf = vcard_service::contacts_to_vcf(&contacts);
 
@@ -52,8 +57,8 @@ pub async fn export_vcf(
     ).into_response())
 }
 
-/// Exports contacts as a CSV with columns broadly compatible with Google /
-/// Outlook imports.
+/// Exports contacts as a CSV whose column names are the ones the mainstream
+/// address books expect on import, so the file opens elsewhere without mapping.
 pub async fn export_csv(
     State(state): State<AppState>,
     Extension(user): Extension<ContactsUser>,
@@ -62,9 +67,11 @@ pub async fn export_csv(
     let list_params = ListContactsParams {
         q: None, group_id: params.group_id, label_id: None, starred: params.starred,
         trashed: Some(false), archived: None, filter: None, sort: None,
-        limit: Some(10000), offset: Some(0),
+        limit: Some(state.instance().export_max_rows), offset: Some(0),
     };
-    let result = contact_service::list_contacts(&state.db, user.id, &list_params).await?;
+    let result = contact_service::list_contacts_capped(
+        &state.db, user.id, &list_params, state.instance().export_max_rows,
+    ).await?;
 
     let mut wtr = csv::Writer::from_writer(vec![]);
     wtr.write_record([
@@ -130,6 +137,19 @@ pub async fn import_vcf(
 
     let dtos = vcard_service::parse_vcf(&vcf_content);
     let total = dtos.len();
+
+    // Instance limits, checked on the whole batch BEFORE writing anything: a
+    // per-row check would let an oversized import walk past the quota one
+    // contact at a time and leave the account half-filled.
+    let cfg = state.instance();
+    if total as i64 > cfg.import_max_rows {
+        return Err(ContactsError::Validation(format!(
+            "Import refusé : {total} fiches pour un maximum de {} par fichier",
+            cfg.import_max_rows
+        )));
+    }
+    contact_service::assert_quota(&state.db, user.id, cfg.max_contacts_per_user, total as i64).await?;
+
     let mut imported = 0;
     let mut errors = 0;
 
@@ -169,10 +189,24 @@ pub async fn import_csv(
     let mut rdr = csv::Reader::from_reader(csv_content.as_bytes());
     let headers = rdr.headers().map_err(|e| ContactsError::Validation(e.to_string()))?.clone();
 
+    // Read the whole file first: the instance limits apply to the batch, and a
+    // row-by-row loop could not refuse an oversized import without having
+    // already written part of it.
+    let records: Vec<_> = rdr.records().collect();
+    let cfg = state.instance();
+    if records.len() as i64 > cfg.import_max_rows {
+        return Err(ContactsError::Validation(format!(
+            "Import refusé : {} lignes pour un maximum de {} par fichier",
+            records.len(),
+            cfg.import_max_rows
+        )));
+    }
+    contact_service::assert_quota(&state.db, user.id, cfg.max_contacts_per_user, records.len() as i64).await?;
+
     let mut imported = 0;
     let mut errors = 0;
 
-    for result in rdr.records() {
+    for result in records {
         let record = match result {
             Ok(r) => r,
             Err(_) => { errors += 1; continue; }

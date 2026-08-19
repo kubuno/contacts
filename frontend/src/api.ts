@@ -173,6 +173,15 @@ export interface DirectoryProfile {
   phone: string | null
 }
 
+/** Public profile as the core's governed directory (`/users/search`) returns it. */
+export interface DirectoryUser {
+  id: string
+  username: string
+  display_name: string
+  avatar_url?: string | null
+  email?: string
+}
+
 export interface ListContactsParams {
   q?: string
   group_id?: string
@@ -184,6 +193,44 @@ export interface ListContactsParams {
   sort?: string
   limit?: number
   offset?: number
+}
+
+/// An entry of the instance's shared address book: someone without an account,
+/// kept by the administration and readable by every user.
+export interface SharedContact {
+  id:           string
+  display_name: string
+  organization: string | null
+  job_title:    string | null
+  email:        string | null
+  phone:        string | null
+  notes:        string | null
+  updated_by:   string | null
+  created_at:   string
+  updated_at:   string
+}
+
+export interface SharedContactInput {
+  display_name?: string
+  organization?: string
+  job_title?:    string
+  email?:        string
+  phone?:        string
+  notes?:        string
+}
+
+/// The instance policy the administrator set, as far as the browser needs it:
+/// what to offer and what to leave out. Enforcement is server-side.
+export interface ContactsInstanceConfig {
+  max_contacts_per_user:   number
+  max_avatar_mb:           number
+  import_max_rows:         number
+  export_max_rows:         number
+  public_shares_enabled:   boolean
+  share_max_expiry_days:   number
+  share_password_required: boolean
+  carddav_enabled:         boolean
+  shared_book_enabled:     boolean
 }
 
 const BASE = '/contacts'
@@ -288,6 +335,20 @@ export const contactsApi = {
   revokeShare: (id: string) =>
     apiClient.delete(`${BASE}/shares/${id}`),
 
+  // ── Carnet partagé de l'instance ──────────────────────────────────────────
+  listSharedBook: (q?: string) =>
+    apiClient.get<{ contacts: SharedContact[]; enabled: boolean }>(`${BASE}/shared-book`, { params: q ? { q } : undefined }),
+  createSharedContact: (data: SharedContactInput) =>
+    apiClient.post<{ contact: SharedContact }>(`${BASE}/shared-book`, data),
+  updateSharedContact: (id: string, data: SharedContactInput) =>
+    apiClient.patch<{ contact: SharedContact }>(`${BASE}/shared-book/${id}`, data),
+  deleteSharedContact: (id: string) =>
+    apiClient.delete(`${BASE}/shared-book/${id}`),
+
+  // ── Politique d'instance ──────────────────────────────────────────────────
+  getInstanceConfig: () =>
+    apiClient.get<ContactsInstanceConfig>(`${BASE}/config`),
+
   // ── Settings / stats / CardDAV ────────────────────────────────────────────
   getSettings: () =>
     apiClient.get<{ settings: Record<string, unknown> }>(`${BASE}/settings`),
@@ -296,7 +357,7 @@ export const contactsApi = {
   getStats: () =>
     apiClient.get<{ stats: ContactStats }>(`${BASE}/stats`),
   cardDavInfo: () =>
-    apiClient.get<{ configured: boolean; username: string; path: string }>(`${BASE}/carddav/token`),
+    apiClient.get<{ configured: boolean; username: string; path: string; enabled: boolean }>(`${BASE}/carddav/token`),
   cardDavGenerate: () =>
     apiClient.post<{ token: string; username: string; url: string }>(`${BASE}/carddav/token`),
   cardDavRevoke: () =>
@@ -364,8 +425,24 @@ export const contactsApi = {
   },
 
   // ── Annuaire ──────────────────────────────────────────────────────────────
-  searchDirectory: (q: string) =>
-    apiClient.get<{ profiles: DirectoryProfile[] }>(`${BASE}/directory`, { params: { q } }),
+  // The staff directory is served by the CORE, not by this module: `/users/search`
+  // resolves the instance sharing policy (directory.enabled / share_email /
+  // audience) for the signed-in caller. The module never keeps its own copy of
+  // the account list.
+  searchDirectory: async (q: string): Promise<DirectoryProfile[]> => {
+    const { data } = await apiClient.get<{ users: DirectoryUser[] }>('/users/search', {
+      params: { q, limit: 20 },
+    })
+    return data.users.map(u => ({
+      kubuno_user_id: u.id,
+      display_name:   u.display_name,
+      email:          u.email ?? '',
+      avatar_url:     u.avatar_url ?? null,
+      department:     null,
+      job_title:      null,
+      phone:          null,
+    }))
+  },
 
   addFromDirectory: (kubunoUserId: string) =>
     apiClient.post<{ contact: Contact }>(`${BASE}/directory/${kubunoUserId}/add`),

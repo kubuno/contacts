@@ -1,6 +1,9 @@
 import { registerModuleTranslations } from '@kubuno/sdk'
 
 const en = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "Print",
   export: "Export",
   more_options: "More options",
@@ -11,6 +14,7 @@ const en = {
   col_email: "Email",
   col_phone: "Phone number",
   directory: "Instance directory",
+  shared_book: "Shared address book",
   search_user: "Search a user…",
   searching: "Searching…",
   groups: "Groups",
@@ -114,6 +118,9 @@ const en = {
 }
 
 const fr = {
+  share_disabled: "Les liens de partage publics sont désactivés sur cette instance.",
+  share_password: "Mot de passe",
+  share_password_required: "Cette instance exige un mot de passe sur les liens de partage.",
   print: "Imprimer",
   export: "Exporter",
   more_options: "Plus d'options",
@@ -124,6 +131,7 @@ const fr = {
   col_email: "E-mail",
   col_phone: "Numéro de téléphone",
   directory: "Annuaire de l'instance",
+  shared_book: "Carnet partagé de l'instance",
   search_user: "Rechercher un utilisateur…",
   searching: "Recherche…",
   groups: "Groupes",
@@ -227,6 +235,9 @@ const fr = {
 }
 
 const es = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "Imprimir",
   export: "Exportar",
   more_options: "Más opciones",
@@ -237,6 +248,7 @@ const es = {
   col_email: "Correo",
   col_phone: "Número de teléfono",
   directory: "Directorio de la instancia",
+  shared_book: "Libreta compartida",
   search_user: "Buscar un usuario…",
   searching: "Buscando…",
   groups: "Grupos",
@@ -340,6 +352,9 @@ const es = {
 }
 
 const pt = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "Imprimir",
   export: "Exportar",
   more_options: "Mais opções",
@@ -350,6 +365,7 @@ const pt = {
   col_email: "E-mail",
   col_phone: "Número de telefone",
   directory: "Diretório da instância",
+  shared_book: "Livro de endereços partilhado",
   search_user: "Procurar um utilizador…",
   searching: "A procurar…",
   groups: "Grupos",
@@ -453,6 +469,9 @@ const pt = {
 }
 
 const it = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "Stampa",
   export: "Esporta",
   more_options: "Altre opzioni",
@@ -463,6 +482,7 @@ const it = {
   col_email: "E-mail",
   col_phone: "Numero di telefono",
   directory: "Rubrica dell'istanza",
+  shared_book: "Rubrica condivisa",
   search_user: "Cerca un utente…",
   searching: "Ricerca…",
   groups: "Gruppi",
@@ -566,6 +586,9 @@ const it = {
 }
 
 const de = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "Drucken",
   export: "Exportieren",
   more_options: "Weitere Optionen",
@@ -576,6 +599,7 @@ const de = {
   col_email: "E-Mail",
   col_phone: "Telefonnummer",
   directory: "Instanz-Verzeichnis",
+  shared_book: "Gemeinsames Adressbuch",
   search_user: "Benutzer suchen…",
   searching: "Suche…",
   groups: "Gruppen",
@@ -679,6 +703,9 @@ const de = {
 }
 
 const el = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "Εκτύπωση",
   export: "Εξαγωγή",
   more_options: "Περισσότερες επιλογές",
@@ -689,6 +716,7 @@ const el = {
   col_email: "Email",
   col_phone: "Αριθμός τηλεφώνου",
   directory: "Κατάλογος instance",
+  shared_book: "Κοινόχρηστο βιβλίο διευθύνσεων",
   search_user: "Αναζήτηση χρήστη…",
   searching: "Αναζήτηση…",
   groups: "Ομάδες",
@@ -792,6 +820,9 @@ const el = {
 }
 
 const ru = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "Печать",
   export: "Экспорт",
   more_options: "Другие действия",
@@ -802,6 +833,7 @@ const ru = {
   col_email: "Эл. почта",
   col_phone: "Номер телефона",
   directory: "Каталог инстанса",
+  shared_book: "Общая адресная книга",
   search_user: "Поиск пользователя…",
   searching: "Поиск…",
   groups: "Группы",
@@ -905,6 +937,9 @@ const ru = {
 }
 
 const ar = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "طباعة",
   export: "تصدير",
   more_options: "خيارات أخرى",
@@ -915,6 +950,7 @@ const ar = {
   col_email: "البريد الإلكتروني",
   col_phone: "رقم الهاتف",
   directory: "دليل المثيل",
+  shared_book: "دفتر العناوين المشترك",
   search_user: "البحث عن مستخدم…",
   searching: "جارٍ البحث…",
   groups: "المجموعات",
@@ -1018,6 +1054,9 @@ const ar = {
 }
 
 const he = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "הדפסה",
   export: "ייצוא",
   more_options: "אפשרויות נוספות",
@@ -1028,6 +1067,7 @@ const he = {
   col_email: "אימייל",
   col_phone: "מספר טלפון",
   directory: "ספריית המופע",
+  shared_book: "ספר כתובות משותף",
   search_user: "חיפוש משתמש…",
   searching: "מחפש…",
   groups: "קבוצות",
@@ -1131,6 +1171,9 @@ const he = {
 }
 
 const hi = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "प्रिंट",
   export: "निर्यात",
   more_options: "अधिक विकल्प",
@@ -1141,6 +1184,7 @@ const hi = {
   col_email: "ईमेल",
   col_phone: "फ़ोन नंबर",
   directory: "इंस्टेंस निर्देशिका",
+  shared_book: "साझा पता पुस्तिका",
   search_user: "उपयोगकर्ता खोजें…",
   searching: "खोज रहे हैं…",
   groups: "समूह",
@@ -1244,6 +1288,9 @@ const hi = {
 }
 
 const zh = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "打印",
   export: "导出",
   more_options: "更多选项",
@@ -1254,6 +1301,7 @@ const zh = {
   col_email: "邮箱",
   col_phone: "电话号码",
   directory: "实例目录",
+  shared_book: "共享通讯录",
   search_user: "搜索用户…",
   searching: "搜索中…",
   groups: "群组",
@@ -1357,6 +1405,9 @@ const zh = {
 }
 
 const ja = {
+  share_disabled: "Public share links are disabled on this instance.",
+  share_password: "Password",
+  share_password_required: "This instance requires a password on share links.",
   print: "印刷",
   export: "エクスポート",
   more_options: "その他のオプション",
@@ -1367,6 +1418,7 @@ const ja = {
   col_email: "メール",
   col_phone: "電話番号",
   directory: "インスタンスディレクトリ",
+  shared_book: "共有アドレス帳",
   search_user: "ユーザーを検索…",
   searching: "検索中…",
   groups: "グループ",

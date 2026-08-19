@@ -31,6 +31,7 @@ import ContactsDataCard from './ContactsDataCard'
 import ContactPickerDialog from './ContactPickerDialog'
 import { pickContact } from './contactPickerStore'
 import { registerDataCardRenderer } from './kubunoData'
+import { registerContactsAdmin } from './admin/ContactsAdminPanel'
 
 export const sdkVersion = SDK_VERSION
 
@@ -85,6 +86,10 @@ export function register() {
 
   // The header gear button opens the per-user Contacts settings while in /contacts.
   ModuleSettingsRegistry.register('contacts')
+
+  // Instance administration (console ▸ Modules ▸ Contacts): the account-directory
+  // notice and the shared address book.
+  registerContactsAdmin()
 
   WaffleAppRegistry.register('contacts', 'Contacts', [
     { id: 'contacts', label: 'Contacts', Icon: ContactsLogo, path: '/contacts' },

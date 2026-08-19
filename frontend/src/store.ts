@@ -42,6 +42,10 @@ interface ContactsState {
   selectAll:        () => void
   clearSelection:   () => void
 
+  /** Moves contacts to the trash. Single entry point shared by the context menu,
+   *  the selection bar and the Delete key, so they always behave identically. */
+  trashContacts:    (ids: string[]) => Promise<void>
+
   fetchContacts:    () => Promise<void>
   fetchGroups:      () => Promise<void>
   fetchLabels:      () => Promise<void>
@@ -125,6 +129,13 @@ export const useContactsStore = create<ContactsState>((set, get) => ({
   },
 
   clearSelection: () => set({ selectedIds: new Set() }),
+
+  trashContacts: async (ids) => {
+    if (!ids.length) return
+    await contactsApi.bulk(ids, 'trash')
+    get().clearSelection()
+    get().fetchContacts()
+  },
 
   fetchContacts: async () => {
     set({ isLoading: true })

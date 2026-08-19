@@ -190,7 +190,7 @@ export function SettingsView() {
   const { t } = useTranslation('contacts')
   const [prefs, setPrefs] = useState<Record<string, unknown>>({})
   const [stats, setStats] = useState<ContactStats | null>(null)
-  const [dav, setDav] = useState<{ configured: boolean; username: string; path: string } | null>(null)
+  const [dav, setDav] = useState<{ configured: boolean; username: string; path: string; enabled: boolean } | null>(null)
   const [davCreds, setDavCreds] = useState<{ token: string; username: string; url: string } | null>(null)
   const [copied, copy] = useCopy()
 
@@ -205,8 +205,8 @@ export function SettingsView() {
     setPrefs(next)
     contactsApi.updateSettings({ [key]: value })
   }
-  async function genDav() { const r = await contactsApi.cardDavGenerate(); setDavCreds(r.data); setDav({ configured: true, username: r.data.username, path: '/dav' }) }
-  async function revokeDav() { await contactsApi.cardDavRevoke(); setDav({ configured: false, username: '', path: '/dav' }); setDavCreds(null) }
+  async function genDav() { const r = await contactsApi.cardDavGenerate(); setDavCreds(r.data); setDav({ configured: true, username: r.data.username, path: '/dav', enabled: true }) }
+  async function revokeDav() { await contactsApi.cardDavRevoke(); setDav({ configured: false, username: '', path: '/dav', enabled: dav?.enabled ?? true }); setDavCreds(null) }
 
   const davUrl = davCreds ? `${window.location.origin}/api/v1/contacts${davCreds.url}` : ''
 
@@ -241,7 +241,11 @@ export function SettingsView() {
         <section>
           <h3 className="text-sm font-semibold text-text-primary mb-1">{t('set_carddav')}</h3>
           <p className="text-xs text-text-secondary mb-3">{t('set_carddav_desc')}</p>
-          {dav?.configured ? (
+          {dav && !dav.enabled ? (
+            <p className="text-sm text-text-secondary bg-surface-1 border border-border rounded-lg px-3 py-2">
+              {t('set_carddav_disabled', { defaultValue: "La synchronisation CardDAV est désactivée sur cette instance." })}
+            </p>
+          ) : dav?.configured ? (
             <div className="space-y-2">
               {davCreds && (
                 <>

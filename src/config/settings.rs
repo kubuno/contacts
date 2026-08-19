@@ -71,7 +71,13 @@ pub struct StorageSettings {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ContactsSettings {
+    /// Superseded by the instance setting `contacts.max_avatar_mb`, which the
+    /// administrator edits in the console and which the handlers now read
+    /// (see `config::instance`). Kept so an existing deployment file still
+    /// parses; the value itself is no longer consulted.
+    #[allow(dead_code)]
     pub max_avatar_mb:        u64,
+    #[allow(dead_code)]
     pub auto_share_profiles:  bool,
 }
 

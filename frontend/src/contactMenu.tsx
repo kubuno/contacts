@@ -11,8 +11,13 @@ import ShareModal from './ShareModal'
 import { copyKubunoData, openLabelPicker } from './kubunoData'
 import { contactEnvelope } from './ContactsDataCard'
 
-interface Ctx { open: (e: React.MouseEvent, contact: Contact) => void }
-const ContactMenuContext = createContext<Ctx>({ open: () => {} })
+interface Ctx {
+  open: (e: React.MouseEvent, contact: Contact) => void
+  /** True while the context menu or the share dialog is on screen — consumers
+   *  use it to keep their keyboard shortcuts out of the way. */
+  overlayOpen: boolean
+}
+const ContactMenuContext = createContext<Ctx>({ open: () => {}, overlayOpen: false })
 export const useContactMenu = () => useContext(ContactMenuContext)
 
 /** Provides a right-click context menu for contacts, anywhere in the subtree. */
@@ -125,13 +130,14 @@ export function ContactMenuProvider({ children }: { children: React.ReactNode })
         onClick: () => bulk(contact.is_blocked ? 'unblock' : 'block'),
       })
     }
-    items.push({ type: 'action', label: t('sel_delete'), danger: true, icon: <Trash2 size={15} />, onClick: () => bulk('trash') })
+    // Same handler as the Delete key (see ContactsApp) — keep both in sync.
+    items.push({ type: 'action', label: t('sel_delete'), shortcut: 'Suppr', danger: true, icon: <Trash2 size={15} />, onClick: () => { s.trashContacts(targets) } })
 
     setMenu({ pos: { top: e.clientY, left: e.clientX }, items })
   }, [t])
 
   return (
-    <ContactMenuContext.Provider value={{ open }}>
+    <ContactMenuContext.Provider value={{ open, overlayOpen: menu !== null || shareId !== null }}>
       {children}
       {menu && <MenuDropdown items={menu.items} pos={menu.pos} onClose={() => setMenu(null)} />}
       {shareId && <ShareModal contactId={shareId} onClose={() => setShareId(null)} />}

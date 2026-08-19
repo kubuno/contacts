@@ -167,7 +167,7 @@ function DavRow({ label, value, onCopy }: { label: string; value: string; onCopy
 
 function CardDavTab() {
   const { t } = useTranslation('contacts')
-  const [dav, setDav] = useState<{ configured: boolean; username: string; path: string } | null>(null)
+  const [dav, setDav] = useState<{ configured: boolean; username: string; path: string; enabled: boolean } | null>(null)
   const [davCreds, setDavCreds] = useState<{ token: string; username: string; url: string } | null>(null)
   const [copied, copy] = useCopy()
 
@@ -178,11 +178,11 @@ function CardDavTab() {
   async function genDav() {
     const r = await contactsApi.cardDavGenerate()
     setDavCreds(r.data)
-    setDav({ configured: true, username: r.data.username, path: '/dav' })
+    setDav({ configured: true, username: r.data.username, path: '/dav', enabled: true })
   }
   async function revokeDav() {
     await contactsApi.cardDavRevoke()
-    setDav({ configured: false, username: '', path: '/dav' })
+    setDav({ configured: false, username: '', path: '/dav', enabled: dav?.enabled ?? true })
     setDavCreds(null)
   }
 
@@ -192,7 +192,11 @@ function CardDavTab() {
     <div>
       <h3 className="text-sm font-semibold text-text-primary mb-1">{t('set_carddav', { defaultValue: 'Sync (CardDAV)' })}</h3>
       <p className="text-xs text-text-secondary mb-4">{t('set_carddav_desc', { defaultValue: 'Synchronisez vos contacts avec votre téléphone ou votre ordinateur. Utilisez ces identifiants dans votre application CardDAV.' })}</p>
-      {dav?.configured ? (
+      {dav && !dav.enabled ? (
+        <p className="text-sm text-text-secondary bg-surface-1 border border-border rounded-lg px-3 py-2">
+          {t('set_carddav_disabled', { defaultValue: "La synchronisation CardDAV est désactivée sur cette instance." })}
+        </p>
+      ) : dav?.configured ? (
         <div className="space-y-2">
           {davCreds && (
             <>

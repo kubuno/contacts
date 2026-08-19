@@ -5,6 +5,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    config::instance::InstanceConfig,
     errors::{ContactsError, Result},
     models::{
         contact::Contact,
@@ -25,9 +26,27 @@ pub fn sha256_hex(input: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-pub async fn create_share(db: &PgPool, owner_id: Uuid, dto: &CreateShareDto) -> Result<Share> {
+/// Creates a public link, under the instance policy: public links may be
+/// switched off entirely, may be required to carry a password, and may be
+/// capped in lifetime.
+pub async fn create_share(
+    db: &PgPool,
+    owner_id: Uuid,
+    dto: &CreateShareDto,
+    cfg: &InstanceConfig,
+) -> Result<Share> {
+    if !cfg.public_shares_enabled {
+        return Err(ContactsError::Forbidden);
+    }
     if dto.contact_id.is_none() && dto.group_id.is_none() {
         return Err(ContactsError::Validation("contact_id ou group_id requis".into()));
+    }
+    if cfg.share_password_required
+        && dto.password.as_deref().map(str::trim).unwrap_or("").is_empty()
+    {
+        return Err(ContactsError::Validation(
+            "Cette instance exige un mot de passe sur les liens de partage".into(),
+        ));
     }
     // Validate ownership of the shared target.
     if let Some(cid) = dto.contact_id {
@@ -47,7 +66,19 @@ pub async fn create_share(db: &PgPool, owner_id: Uuid, dto: &CreateShareDto) -> 
 
     let token = gen_token();
     let password_hash = dto.password.as_ref().map(|p| sha256_hex(p));
-    let expires_at = dto.expires_in_days.map(|d| chrono::Utc::now() + chrono::Duration::days(d));
+    // A ceiling both shortens a longer request and gives an expiry to a link
+    // asked for without one — otherwise the cap would be trivial to bypass by
+    // simply not choosing a duration.
+    let days = if cfg.share_max_expiry_days > 0 {
+        Some(
+            dto.expires_in_days
+                .unwrap_or(cfg.share_max_expiry_days)
+                .clamp(1, cfg.share_max_expiry_days),
+        )
+    } else {
+        dto.expires_in_days
+    };
+    let expires_at = days.map(|d| chrono::Utc::now() + chrono::Duration::days(d));
 
     sqlx::query_as::<_, Share>(
         "INSERT INTO contacts.shares

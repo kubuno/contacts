@@ -101,13 +101,13 @@ function useIsMobile(): boolean {
 function ContactsAppInner() {
   const isMobile = useIsMobile()
   const { t } = useTranslation('contacts')
-  const { open: openContactMenu } = useContactMenu()
+  const { open: openContactMenu, overlayOpen } = useContactMenu()
   const s = useContactsStore()
   const {
     contacts, total, selectedId, selectedIds, view, viewMode, sort,
     fetchContacts, fetchGroups, fetchLabels, fetchDueCount,
     setSelectedId, toggleSelect, setViewMode, setSort, setFilter, setSearchQuery,
-    editorOpen, setEditorOpen, importOpen, setImportOpen,
+    editorOpen, setEditorOpen, importOpen, setImportOpen, trashContacts,
   } = s
 
   const [searchLocal, setSearchLocal] = useState('')
@@ -129,6 +129,25 @@ function ContactsAppInner() {
       .catch(() => { if (!cancelled) setDeepContact(null) })
     return () => { cancelled = true }
   }, [setSelectedId])
+
+  // Delete key → exactly the "Supprimer" context-menu entry (store.trashContacts).
+  // Only on the views that render the contact list; the trash view offers a
+  // permanent delete, which must stay a deliberate click.
+  useEffect(() => {
+    const listViews = ['all', 'starred', 'group', 'label', 'archived', 'frequent', 'followup']
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete') return
+      const el = e.target as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      if (!listViews.includes(view) || editorOpen || importOpen || overlayOpen) return
+      const targets = selectedIds.size ? [...selectedIds] : selectedId ? [selectedId] : []
+      if (!targets.length) return
+      e.preventDefault()
+      trashContacts(targets).catch(() => {})
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view, editorOpen, importOpen, overlayOpen, selectedIds, selectedId, trashContacts])
 
   function onSearchChange(v: string) {
     setSearchLocal(v)

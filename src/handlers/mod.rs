@@ -12,3 +12,6 @@ pub mod import_export;
 pub mod directory;
 pub mod health;
 pub mod events;
+pub mod export;
+pub mod shared_book;
+pub mod config;

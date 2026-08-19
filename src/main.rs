@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use kubuno_contacts::{config::Settings, router, state::AppState};
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -16,6 +16,69 @@ struct Manifest {
     #[serde(default)]
     sidebar_items: Vec<SidebarItemRaw>,
     events:        Option<ManifestEvents>,
+    /// Declarative settings manifest pushed to the core at registration.
+    #[serde(default)]
+    settings:      Vec<SettingDefRaw>,
+    /// Pages the admin panel is split into (`[[setting_groups]]`).
+    #[serde(default)]
+    setting_groups: Vec<SettingGroupRaw>,
+}
+
+/// One `[[setting_groups]]` entry of module.toml, forwarded verbatim. `id` is a
+/// STABLE, UNTRANSLATED slug: it travels in the URL of the admin page.
+#[derive(Deserialize, Serialize)]
+struct SettingGroupRaw {
+    id:          String,
+    label:       String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    icon:        Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    position:    Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+}
+
+/// One `[[settings]]` entry from module.toml. Serialized verbatim into the
+/// registration payload (`type` is renamed to match the core's `SettingDef`).
+#[derive(Deserialize, Serialize)]
+struct SettingDefRaw {
+    key:         String,
+    scope:       String,
+    #[serde(rename = "type")]
+    value_type:  String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    values:      Option<Vec<Value>>,
+    default:     Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label:       Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    category:    Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    group:       Option<String>,
+    #[serde(default)]
+    public:      bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    risk:        Option<String>,
+    /// Bounds for `type = "int"`. Enforced by the core's API, not only drawn by
+    /// the console — a manifest that omits them accepts any number.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    min:         Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max:         Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit:        Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    placeholder: Option<String>,
+    /// Key of another `bool` setting of the SAME module: this one is hidden
+    /// while that boolean is false.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    depends_on:  Option<String>,
+    #[serde(default)]
+    advanced:    bool,
+    #[serde(default)]
+    multiline:   bool,
 }
 
 #[derive(Deserialize)]
@@ -125,10 +188,45 @@ async fn main() -> Result<()> {
             .context("Migrations")?;
     }
 
+    // One client, shared by the state (directory resolution) and the
+    // registration/heartbeat loop below.
+    let http = Client::new();
+
+    // Instance settings: compiled defaults, then one read from the core so the
+    // quotas, the sharing policy and the CardDAV switch see the administrator's
+    // values from the first request on.
+    let instance = Arc::new(std::sync::RwLock::new(
+        kubuno_contacts::config::instance::InstanceConfig::default(),
+    ));
+    if let Some(cfg) = kubuno_contacts::config::instance::fetch(
+        &http, &settings.core.url, &settings.core.internal_secret,
+    ).await {
+        if let Ok(mut w) = instance.write() { *w = cfg; }
+    }
+
     let state = AppState {
         db:       pool,
         settings: Arc::new(settings.clone()),
+        http:     http.clone(),
+        instance: instance.clone(),
     };
+
+    // Instance-settings refresher: an admin edit takes effect within a minute.
+    {
+        let http_r     = http.clone();
+        let settings_r = settings.clone();
+        let instance_r = instance.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                if let Some(cfg) = kubuno_contacts::config::instance::fetch(
+                    &http_r, &settings_r.core.url, &settings_r.core.internal_secret,
+                ).await {
+                    if let Ok(mut w) = instance_r.write() { *w = cfg; }
+                }
+            }
+        });
+    }
 
     // Worker de rappels (anniversaires / relances) — notifie l'utilisateur via le core.
     {
@@ -140,7 +238,6 @@ async fn main() -> Result<()> {
     }
 
     // Enregistrement auprès du core (avec retry infini)
-    let http = Client::new();
     register_with_core(&http, &settings).await;
 
     // Heartbeat toutes les 30s
@@ -213,6 +310,13 @@ async fn register_with_core(http: &Client, settings: &Settings) {
         .map(|e| e.subscribed.clone())
         .unwrap_or_else(|| vec!["UserCreated".into(), "UserUpdated".into(), "UserDeleted".into()]);
 
+    let settings_schema: Value = manifest.as_ref()
+        .map(|m| serde_json::to_value(&m.settings).unwrap_or_else(|_| json!([])))
+        .unwrap_or_else(|| json!([]));
+    let setting_groups: Value = manifest.as_ref()
+        .map(|m| serde_json::to_value(&m.setting_groups).unwrap_or_else(|_| json!([])))
+        .unwrap_or_else(|| json!([]));
+
     let payload = json!({
         "module_id":         "contacts",
         "display_name":      display_name,
@@ -223,6 +327,8 @@ async fn register_with_core(http: &Client, settings: &Settings) {
         "routes":            [{ "method": "*", "path": "/*" }],
         "sidebar_items":     sidebar_items,
         "subscribed_events": subscribed_events,
+        "settings_schema":   settings_schema,
+        "setting_groups":    setting_groups,
     });
 
     for attempt in 1u32.. {

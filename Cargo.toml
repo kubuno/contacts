@@ -39,6 +39,9 @@ hex                = { workspace = true }
 toml               = { workspace = true }
 clap               = { workspace = true }
 kubuno-storage     = { workspace = true }
+# Archive produced by the instance-wide data export: this module answers the
+# core's per-account export call with a ZIP of its own service folder.
+zip                = { workspace = true }
 
 csv   = "1.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }

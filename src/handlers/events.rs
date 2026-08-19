@@ -12,40 +12,16 @@ pub struct KubunoEvent {
 }
 
 /// Called by the core when a subscribed event fires.
+///
+/// The module used to mirror `UserCreated`/`UserUpdated`/`UserDeleted` into a
+/// local `directory_profiles` table and serve the staff directory from it. That
+/// mirror bypassed the instance sharing policy (`directory.enabled` /
+/// `share_email` / `audience`), so it was removed: the directory is now read
+/// straight from the core's governed endpoints. Account events therefore need no
+/// local bookkeeping and are acknowledged without side effects.
 pub async fn handle_event(
-    State(state): State<AppState>,
-    Json(event): Json<KubunoEvent>,
+    State(_state): State<AppState>,
+    Json(_event): Json<KubunoEvent>,
 ) -> Result<Json<Value>> {
-    match event.event_type.as_str() {
-        "UserCreated" | "UserUpdated" => {
-            if let (Some(user_id), Some(email), Some(display_name)) = (
-                event.payload.get("user_id").and_then(|v| v.as_str()).and_then(|s| s.parse::<uuid::Uuid>().ok()),
-                event.payload.get("email").and_then(|v| v.as_str()),
-                event.payload.get("display_name").and_then(|v| v.as_str()),
-            ) {
-                sqlx::query(
-                    "INSERT INTO contacts.directory_profiles (kubuno_user_id, display_name, email)
-                     VALUES ($1, $2, $3)
-                     ON CONFLICT (kubuno_user_id) DO UPDATE SET
-                     display_name = EXCLUDED.display_name,
-                     email        = EXCLUDED.email,
-                     updated_at   = NOW()",
-                )
-                .bind(user_id).bind(display_name).bind(email)
-                .execute(&state.db).await?;
-            }
-        }
-        "UserDeleted" => {
-            if let Some(user_id) = event.payload.get("user_id").and_then(|v| v.as_str()).and_then(|s| s.parse::<uuid::Uuid>().ok()) {
-                sqlx::query(
-                    "DELETE FROM contacts.directory_profiles WHERE kubuno_user_id = $1",
-                )
-                .bind(user_id)
-                .execute(&state.db).await?;
-            }
-        }
-        _ => {}
-    }
-
     Ok(Json(json!({ "ok": true })))
 }

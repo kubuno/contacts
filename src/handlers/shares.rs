@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::{
-    errors::Result,
+    errors::{ContactsError, Result},
     middleware::ContactsUser,
     models::share::CreateShareDto,
     services::share_service,
@@ -27,7 +27,7 @@ pub async fn create(
     Extension(user): Extension<ContactsUser>,
     Json(dto): Json<CreateShareDto>,
 ) -> Result<Json<Value>> {
-    let share = share_service::create_share(&state.db, user.id, &dto).await?;
+    let share = share_service::create_share(&state.db, user.id, &dto, &state.instance()).await?;
     Ok(Json(json!({ "share": share })))
 }
 
@@ -51,6 +51,12 @@ pub async fn public_view(
     Path(token): Path<String>,
     Query(q): Query<PublicQuery>,
 ) -> Result<Json<Value>> {
+    // Switching public links off must also close the ones already handed out;
+    // "not found" rather than "forbidden" so the endpoint says nothing about
+    // whether that token ever existed.
+    if !state.instance().public_shares_enabled {
+        return Err(ContactsError::NotFound("Partage".into()));
+    }
     let payload = share_service::resolve_share(&state.db, &token, q.password.as_deref()).await?;
     Ok(Json(json!({ "kind": payload.kind, "contacts": payload.contacts })))
 }

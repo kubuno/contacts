@@ -21,7 +21,7 @@ struct SearchToken {
 }
 
 /// Parses a raw query string into scoped tokens. Supports field operators like
-/// `email:gmail`, `tel:06`, `org:acme`, `name:dupont`, `job:`, `note:`, `addr:`.
+/// `email:exemple`, `tel:06`, `org:acme`, `name:dupont`, `job:`, `note:`, `addr:`.
 /// Quoted segments keep their spaces. Anything without an operator is a generic
 /// term matched against the full-text vector and the most common fields.
 fn parse_query(raw: &str) -> Vec<SearchToken> {
@@ -123,12 +123,29 @@ fn order_clause(sort: Option<&str>) -> &'static str {
     }
 }
 
+/// Ceiling the interactive listing accepts, whatever the caller asks for: the
+/// address book is paginated and a page of thousands would serve nobody.
+const LIST_MAX_LIMIT: i64 = 500;
+
+/// The paginated listing behind every screen. Bounded by [`LIST_MAX_LIMIT`].
 pub async fn list_contacts(
     db: &PgPool,
     owner_id: Uuid,
     params: &ListContactsParams,
 ) -> Result<ContactsListResponse> {
-    let limit  = params.limit.unwrap_or(50).clamp(1, 500);
+    list_contacts_capped(db, owner_id, params, LIST_MAX_LIMIT).await
+}
+
+/// Same listing under an explicit ceiling. Export is the caller that needs it:
+/// it legitimately asks for far more than a screen, and the interactive cap —
+/// which used to apply to it silently — truncated every export past 500 rows.
+pub async fn list_contacts_capped(
+    db: &PgPool,
+    owner_id: Uuid,
+    params: &ListContactsParams,
+    max_limit: i64,
+) -> Result<ContactsListResponse> {
+    let limit  = params.limit.unwrap_or(50).clamp(1, max_limit.max(1));
     let offset = params.offset.unwrap_or(0).max(0);
     let trashed  = params.trashed.unwrap_or(false);
     let archived = params.archived.unwrap_or(false);
@@ -244,6 +261,34 @@ pub async fn get_contact(db: &PgPool, owner_id: Uuid, contact_id: Uuid) -> Resul
     .fetch_optional(db).await
     .map_err(ContactsError::Database)?
     .ok_or_else(|| ContactsError::NotFound(format!("Contact {contact_id}")))
+}
+
+/// Refuses a creation that would take the account past the instance quota.
+/// `extra` is how many contacts are about to be created — 1 for a single
+/// creation, the size of the batch for an import, so an import can never slip
+/// past the quota one row at a time. `max <= 0` means no quota.
+///
+/// Trashed contacts are counted: they still occupy the account until the bin is
+/// emptied, and a quota that ignored them could be walked around indefinitely.
+pub async fn assert_quota(db: &PgPool, owner_id: Uuid, max: i64, extra: i64) -> Result<()> {
+    if max <= 0 {
+        return Ok(());
+    }
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM contacts.contacts WHERE owner_id = $1")
+        .bind(owner_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Comptage des contacts pour le quota");
+            ContactsError::Database(e)
+        })?;
+
+    if count + extra > max {
+        return Err(ContactsError::Validation(format!(
+            "Quota de contacts atteint ({max} par utilisateur)"
+        )));
+    }
+    Ok(())
 }
 
 pub async fn create_contact(

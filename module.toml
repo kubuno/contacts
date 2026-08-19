@@ -29,6 +29,155 @@ path     = "/contacts"
 position = 40
 section  = "main"
 
+# ── Admin panel pages ─────────────────────────────────────────────────────────
+# The account directory (who is visible, whether e-mail addresses are shared,
+# which profile fields a user may edit) is NOT here: it belongs to the core
+# (`directory.*`), and migration 000006 dropped this module's local mirror
+# because it bypassed that policy. The "directory" page below says so and links
+# to it rather than duplicating it.
+
+[[setting_groups]]
+id          = "directory"
+label       = "Annuaire des comptes"
+icon        = "Building2"
+position    = 1
+description = "Où se règle la visibilité de l'annuaire et la modification des profils."
+
+[[setting_groups]]
+id          = "book"
+label       = "Carnet d'adresses"
+icon        = "Contact"
+position    = 2
+description = "Les limites appliquées aux carnets personnels : nombre de contacts, photos."
+
+[[setting_groups]]
+id          = "transfer"
+label       = "Import et export"
+icon        = "ArrowDownUp"
+position    = 3
+description = "Le volume accepté lors d'un import vCard/CSV et produit par un export."
+
+[[setting_groups]]
+id          = "sharing"
+label       = "Partage par lien"
+icon        = "Link2"
+position    = 4
+description = "Les liens publics par lesquels un utilisateur publie un contact ou un groupe."
+
+[[setting_groups]]
+id          = "sync"
+label       = "Synchronisation"
+icon        = "RefreshCw"
+position    = 5
+description = "L'accès CardDAV utilisé par les clients externes (téléphone, logiciel de messagerie)."
+
+[[setting_groups]]
+id          = "shared-book"
+label       = "Carnet partagé"
+icon        = "Users"
+position    = 6
+description = "Le carnet d'adresses de l'instance : des contacts externes tenus par l'administration et visibles de tous, en lecture seule."
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+[[settings]]
+key     = "max_contacts_per_user"
+scope   = "global"
+group   = "book"
+type    = "int"
+default = 0
+min     = 0
+max     = 1000000
+unit    = "contacts"
+label   = "Contacts maximum par utilisateur"
+description = "Plafond du carnet personnel de chaque compte. 0 pour ne pas limiter. La corbeille compte tant qu'elle n'est pas vidée."
+
+[[settings]]
+key     = "max_avatar_mb"
+scope   = "global"
+group   = "book"
+type    = "int"
+default = 5
+min     = 1
+max     = 20
+unit    = "Mo"
+label   = "Taille maximale d'une photo (Mo)"
+description = "Poids maximal du fichier envoyé comme photo de contact, avant redimensionnement. Le plafond de 20 Mo est celui du transport."
+
+[[settings]]
+key     = "import_max_rows"
+scope   = "global"
+group   = "transfer"
+type    = "int"
+default = 5000
+min     = 1
+max     = 1000000
+unit    = "fiches"
+label   = "Fiches maximum par import"
+description = "Nombre de fiches accepté dans un même fichier vCard ou CSV. Au-delà, l'import est refusé."
+
+[[settings]]
+key     = "export_max_rows"
+scope   = "global"
+group   = "transfer"
+type    = "int"
+default = 10000
+min     = 1
+max     = 1000000
+unit    = "fiches"
+label   = "Fiches maximum par export"
+description = "Nombre de fiches écrites dans un fichier vCard ou CSV exporté."
+
+[[settings]]
+key     = "public_shares_enabled"
+scope   = "global"
+group   = "sharing"
+type    = "bool"
+default = true
+label   = "Autoriser les liens de partage publics"
+description = "Un lien de partage est consultable sans compte. Désactivé, aucun nouveau lien ne peut être créé et les liens existants cessent de répondre."
+
+[[settings]]
+key     = "share_max_expiry_days"
+scope   = "global"
+group   = "sharing"
+type    = "int"
+default = 0
+min     = 0
+max     = 3650
+unit    = "jours"
+depends_on = "public_shares_enabled"
+label   = "Durée de vie maximale d'un lien (jours)"
+description = "Plafond de la durée choisie par l'utilisateur ; un lien sans échéance en reçoit une. 0 pour laisser les liens sans limite de durée."
+
+[[settings]]
+key     = "share_password_required"
+scope   = "global"
+group   = "sharing"
+type    = "bool"
+default = false
+depends_on = "public_shares_enabled"
+label   = "Exiger un mot de passe sur les liens"
+description = "Refuse la création d'un lien de partage qui ne serait pas protégé par un mot de passe."
+
+[[settings]]
+key     = "carddav_enabled"
+scope   = "global"
+group   = "sync"
+type    = "bool"
+default = true
+label   = "Activer la synchronisation CardDAV"
+description = "Ouvre le point d'accès /contacts/dav aux clients externes. Désactivé, les jetons existants ne donnent plus accès et aucun nouveau jeton n'est délivré."
+
+[[settings]]
+key     = "shared_book_enabled"
+scope   = "global"
+group   = "shared-book"
+type    = "bool"
+default = true
+label   = "Diffuser le carnet partagé"
+description = "Rend le carnet d'adresses de l'instance visible de tous les utilisateurs, en lecture seule. Seule l'administration y écrit."
+
 [events]
 subscribed = ["UserCreated", "UserUpdated", "UserDeleted", "MessageSent", "EventCreated"]
 publishes  = ["ContactCreated", "ContactUpdated", "ContactDeleted"]

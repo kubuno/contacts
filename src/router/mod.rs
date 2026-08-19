@@ -1,4 +1,5 @@
 use axum::{
+    extract::DefaultBodyLimit,
     middleware,
     routing::{any, delete, get, patch, post},
     Router,
@@ -7,10 +8,10 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     handlers::{
-        bulk, carddav, contacts, delta, directory, events, groups, health, import_export, interactions,
-        labels, reminders, settings, shares,
+        bulk, carddav, config, contacts, delta, directory, events, groups, health, import_export,
+        export, interactions, labels, reminders, settings, shared_book, shares,
     },
-    middleware::require_auth,
+    middleware::{require_auth, require_internal_secret},
     state::AppState,
 };
 
@@ -71,9 +72,30 @@ pub fn build(state: AppState) -> Router {
         .route("/import/vcf",                 post(import_export::import_vcf))
         .route("/import/csv",                 post(import_export::import_csv))
         // Annuaire
-        .route("/directory",                  get(directory::search))
         .route("/directory/:user_id/add",     post(directory::add_to_contacts))
+        // Carnet partagé de l'instance (lecture pour tous, écriture réservée à l'admin)
+        .route("/shared-book",                get(shared_book::list).post(shared_book::create))
+        .route("/shared-book/:id",            patch(shared_book::update).delete(shared_book::delete))
+        // Politique d'instance visible du client (l'application reste serveur)
+        .route("/config",                     get(config::get_config))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth))
+        .with_state(state.clone());
+
+    // Routes internes (core → module), protégées par X-Internal-Secret et par
+    // rien d'autre : elles ne passent pas par le proxy du core et ne portent
+    // donc aucun `x-kubuno-user-id` digne de confiance. Le garde est posé en
+    // `.layer()` sur ce sous-routeur, de sorte qu'une route ajoutée ensuite en
+    // hérite — c'est le motif de `drive`, et l'oubli inverse (vérifier dans
+    // chaque handler) est celui qu'on finit par ne pas faire.
+    //
+    // Contrat d'export module→core, v1 : cf. handlers::export.
+    let internal = Router::new()
+        .route("/internal/export/describe", get(export::describe))
+        .route("/internal/export/account",  post(export::account))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_internal_secret,
+        ))
         .with_state(state.clone());
 
     let public_routes = Router::new()
@@ -89,7 +111,14 @@ pub fn build(state: AppState) -> Router {
 
     Router::new()
         .merge(public_routes)
+        .merge(internal)
         .nest("/", authed)
+        // Axum's default body limit is 2 MB, which silently truncated both the
+        // contact photo (whose own cap is an instance setting) and any sizeable
+        // vCard/CSV import. 25 MB covers the largest photo the console can allow
+        // and a full address-book file, while still bounding what one request
+        // may push into memory.
+        .layer(DefaultBodyLimit::max(25 * 1024 * 1024))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
 }

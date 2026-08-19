@@ -29,6 +29,7 @@ pub async fn create(
     Extension(user): Extension<ContactsUser>,
     Json(dto): Json<CreateContactDto>,
 ) -> Result<Json<Value>> {
+    contact_service::assert_quota(&state.db, user.id, state.instance().max_contacts_per_user, 1).await?;
     let contact = contact_service::create_contact(&state.db, user.id, &dto).await?;
     core_client::publish(&state.settings, core_client::contact_lifecycle("ContactCreated", contact.id, user.id)).await;
     Ok(Json(json!({ "contact": contact })))
@@ -215,7 +216,7 @@ pub async fn upload_avatar(
     let svc = AvatarService::new(
         &state.settings.storage.local_path,
         &state.settings.storage.temp_path,
-        state.settings.contacts.max_avatar_mb,
+        state.instance().max_avatar_mb,
     );
 
     let mut saved_path = None;
@@ -256,7 +257,7 @@ pub async fn get_avatar(
     let svc = AvatarService::new(
         &state.settings.storage.local_path,
         &state.settings.storage.temp_path,
-        state.settings.contacts.max_avatar_mb,
+        state.instance().max_avatar_mb,
     );
     let data = svc.read_avatar(&path).await
         .map_err(|e| ContactsError::NotFound(e.to_string()))?;

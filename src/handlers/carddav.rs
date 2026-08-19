@@ -51,6 +51,17 @@ async fn dav_dispatch(
     body: &Bytes,
     req_path: &str,
 ) -> Response {
+    // Instance policy: with CardDAV off the endpoint answers nothing at all —
+    // capability discovery included, so a client stops retrying instead of
+    // looping on a credential it believes to be wrong.
+    if !state.instance().carddav_enabled {
+        return (
+            StatusCode::NOT_FOUND,
+            "Synchronisation CardDAV désactivée sur cette instance",
+        )
+            .into_response();
+    }
+
     // OPTIONS is unauthenticated (capability discovery).
     if method.as_str() == "OPTIONS" {
         return (
@@ -287,13 +298,23 @@ pub async fn token_info(
     Extension(user): Extension<ContactsUser>,
 ) -> Result<Json<Value>> {
     let exists = carddav_service::has_token(&state.db, user.id).await?;
-    Ok(Json(json!({ "configured": exists, "username": user.email, "path": "/dav" })))
+    Ok(Json(json!({
+        "configured": exists,
+        "username":   user.email,
+        "path":       "/dav",
+        // Lets the settings page state that the instance closed the endpoint,
+        // rather than offering a button that can only fail.
+        "enabled":    state.instance().carddav_enabled,
+    })))
 }
 
 pub async fn generate_token(
     State(state): State<AppState>,
     Extension(user): Extension<ContactsUser>,
 ) -> Result<Json<Value>> {
+    if !state.instance().carddav_enabled {
+        return Err(crate::errors::ContactsError::Forbidden);
+    }
     let token = carddav_service::regenerate_token(&state.db, user.id).await?;
     Ok(Json(json!({
         "token":    token,

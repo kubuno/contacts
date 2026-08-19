@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     Extension, Json,
 };
 use serde::Deserialize;
@@ -12,99 +12,93 @@ use crate::{
     state::AppState,
 };
 
+/// One account as the core's governed directory answers it.
+///
+/// Same projection every module gets from the core; a contacts module never
+/// keeps its own copy of the account list.
 #[derive(Deserialize)]
-pub struct DirectoryParams {
-    pub q:      Option<String>,
-    pub limit:  Option<i64>,
-    pub offset: Option<i64>,
+struct DirectoryUser {
+    display_name: String,
+    #[serde(default)]
+    email:        String,
 }
 
-pub async fn search(
-    State(state): State<AppState>,
-    Extension(_user): Extension<ContactsUser>,
-    Query(params): Query<DirectoryParams>,
-) -> Result<Json<Value>> {
-    let limit  = params.limit.unwrap_or(50).min(200);
-    let offset = params.offset.unwrap_or(0);
-
-    let rows = if let Some(q) = &params.q {
-        sqlx::query_as::<_, (Uuid, String, String, Option<String>, Option<String>, Option<String>, Option<String>)>(
-            "SELECT kubuno_user_id, display_name, email, avatar_url, department, job_title, phone
-             FROM contacts.directory_profiles
-             WHERE is_visible = TRUE
-               AND (to_tsvector('simple', COALESCE(display_name, '') || ' ' || COALESCE(email, ''))
-                    @@ plainto_tsquery('simple', $1)
-                    OR display_name ILIKE '%' || $1 || '%'
-                    OR email ILIKE '%' || $1 || '%')
-             ORDER BY display_name ASC LIMIT $2 OFFSET $3",
-        )
-        .bind(q).bind(limit).bind(offset)
-        .fetch_all(&state.db).await.map_err(ContactsError::Database)?
-    } else {
-        sqlx::query_as::<_, (Uuid, String, String, Option<String>, Option<String>, Option<String>, Option<String>)>(
-            "SELECT kubuno_user_id, display_name, email, avatar_url, department, job_title, phone
-             FROM contacts.directory_profiles
-             WHERE is_visible = TRUE
-             ORDER BY display_name ASC LIMIT $1 OFFSET $2",
-        )
-        .bind(limit).bind(offset)
-        .fetch_all(&state.db).await.map_err(ContactsError::Database)?
-    };
-
-    let profiles: Vec<Value> = rows.into_iter().map(|(id, name, email, avatar, dept, title, phone)| json!({
-        "kubuno_user_id": id,
-        "display_name":   name,
-        "email":          email,
-        "avatar_url":     avatar,
-        "department":     dept,
-        "job_title":      title,
-        "phone":          phone,
-    })).collect();
-
-    Ok(Json(json!({ "profiles": profiles })))
-}
-
+/// Add a directory member to the caller's personal contacts.
+///
+/// The person is resolved from the CORE, never from a local mirror. The core is
+/// the single source of truth for accounts, so the identity written here is the
+/// authoritative one — a client cannot make us store a name that does not match
+/// the id it points at.
+///
+/// Browsing the directory itself is done by the frontend against the core's
+/// authenticated `/users/search`, which resolves the instance sharing policy
+/// (`directory.enabled` / `share_email` / `audience`) for the caller. A module
+/// has no caller once the proxy has stripped `Authorization`, so it must not,
+/// and here does not, try to reproduce that policy.
 pub async fn add_to_contacts(
     State(state): State<AppState>,
     Extension(user): Extension<ContactsUser>,
     Path(kubuno_user_id): Path<Uuid>,
 ) -> Result<Json<Value>> {
-    let profile = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>, Option<String>)>(
-        "SELECT display_name, email, avatar_url, department, job_title, phone
-         FROM contacts.directory_profiles WHERE kubuno_user_id = $1 AND is_visible = TRUE",
-    )
-    .bind(kubuno_user_id)
-    .fetch_optional(&state.db).await.map_err(ContactsError::Database)?
-    .ok_or_else(|| ContactsError::NotFound("Profil introuvable".into()))?;
+    let url = format!(
+        "{}/internal/directory/users/{}",
+        state.settings.core.url, kubuno_user_id
+    );
+    let resp = state
+        .http
+        .get(&url)
+        .header("X-Internal-Secret", state.settings.core.internal_secret.as_str())
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, %kubuno_user_id, "annuaire : le core est injoignable");
+            ContactsError::Internal(anyhow::anyhow!("core directory unreachable"))
+        })?;
 
-    let (display_name, email, _avatar_url, department, job_title, phone) = profile;
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err(ContactsError::NotFound("Profil introuvable".into()));
+    }
+    if !resp.status().is_success() {
+        tracing::error!(status = %resp.status(), %kubuno_user_id, "annuaire : le core a refusé la résolution");
+        return Err(ContactsError::Internal(anyhow::anyhow!("core directory error")));
+    }
 
-    let emails = if email.is_empty() { vec![] } else {
-        vec![crate::models::contact::ContactField { label: None, value: email, field_type: "work".into() }]
+    let profile: DirectoryUser = resp.json().await.map_err(|e| {
+        tracing::error!(error = %e, "annuaire : réponse du core illisible");
+        ContactsError::Internal(anyhow::anyhow!("core directory decode"))
+    })?;
+
+    let emails = if profile.email.is_empty() {
+        vec![]
+    } else {
+        vec![crate::models::contact::ContactField {
+            label: None,
+            value: profile.email,
+            field_type: "work".into(),
+        }]
     };
-    let phones = if let Some(p) = phone {
-        vec![crate::models::contact::ContactField { label: None, value: p, field_type: "work".into() }]
-    } else { vec![] };
 
     let dto = crate::models::contact::CreateContactDto {
         id: None,
         given_name: None, middle_name: None, family_name: None,
         name_prefix: None, name_suffix: None, nickname: None,
-        display_name: Some(display_name), organization: None,
-        department, job_title, avatar_color: None, pronouns: None,
-        emails, phones, addresses: vec![], urls: vec![],
+        display_name: Some(profile.display_name), organization: None,
+        department: None, job_title: None, avatar_color: None, pronouns: None,
+        emails, phones: vec![], addresses: vec![], urls: vec![],
         dates: vec![], relations: vec![], instant_messages: vec![],
         custom_fields: vec![], notes: None, is_starred: None,
     };
 
-    // Set kubuno_user_id after creation
     let contact = crate::services::contact_service::create_contact(&state.db, user.id, &dto).await?;
 
-    sqlx::query(
-        "UPDATE contacts.contacts SET kubuno_user_id = $2 WHERE id = $1",
-    )
-    .bind(contact.id).bind(kubuno_user_id)
-    .execute(&state.db).await.map_err(ContactsError::Database)?;
+    // Link the personal contact to the account it was created from, so presence
+    // and future lookups can find it again.
+    sqlx::query("UPDATE contacts.contacts SET kubuno_user_id = $2 WHERE id = $1")
+        .bind(contact.id)
+        .bind(kubuno_user_id)
+        .execute(&state.db)
+        .await
+        .map_err(ContactsError::Database)?;
 
     Ok(Json(json!({ "contact": contact })))
 }

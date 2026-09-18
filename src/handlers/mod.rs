@@ -1,6 +1,7 @@
 pub mod delta;
 pub mod contacts;
 pub mod groups;
+pub mod other_contacts;
 pub mod labels;
 pub mod bulk;
 pub mod reminders;

@@ -88,7 +88,9 @@ pub struct CustomField {
     pub value: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+// `Default` lets a caller build a contact from a single known field — the
+// "Other contacts" view promotes a bare address into a real record that way.
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct CreateContactDto {
     /// Optional client-minted id (local-first sync replay) — honoured verbatim.
     #[serde(default)]

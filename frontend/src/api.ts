@@ -182,6 +182,19 @@ export interface DirectoryUser {
   email?: string
 }
 
+
+/** An interlocutor met through another module (mail, chat…) and never saved. */
+export interface OtherContact {
+  id: string
+  kind: string
+  value: string
+  display_name: string | null
+  source_module: string
+  first_seen_at: string
+  last_seen_at: string
+  seen_count: number
+}
+
 export interface ListContactsParams {
   q?: string
   group_id?: string
@@ -306,6 +319,35 @@ export const contactsApi = {
   // ── Labels ────────────────────────────────────────────────────────────────
   listLabels: () =>
     apiClient.get<{ labels: Label[] }>(`${BASE}/labels`),
+
+  // ── "Other contacts": interlocutors reported by other modules ─────────────
+  listOtherContacts: () =>
+    apiClient.get<{ other_contacts: OtherContact[] }>(`${BASE}/other-contacts`),
+
+  dismissOtherContact: (id: string) =>
+    apiClient.delete(`${BASE}/other-contacts/${id}`),
+
+  saveOtherContact: (id: string) =>
+    apiClient.post<{ contact: Contact }>(`${BASE}/other-contacts/${id}/save`),
+
+  /** Members of the caller's own organisational unit, from the CORE's governed
+   *  directory — `scope=unit` narrows to that unit whatever the instance
+   *  audience policy is, and the sharing policy still applies first. */
+  listUnitMembers: async (q = ''): Promise<DirectoryProfile[]> => {
+    const { data } = await apiClient.get<{ users: DirectoryUser[] }>('/users/search', {
+      params: { q, limit: 200, scope: 'unit' },
+    })
+    return data.users.map(u => ({
+      kubuno_user_id: u.id,
+      display_name:   u.display_name,
+      email:          u.email ?? '',
+      avatar_url:     u.avatar_url ?? null,
+      department:     null,
+      job_title:      null,
+      phone:          null,
+    }))
+  },
+
   createLabel: (name: string, color?: string, icon?: string) =>
     apiClient.post<{ label: Label }>(`${BASE}/labels`, { name, color, icon }),
   updateLabel: (id: string, data: { name?: string; color?: string; icon?: string }) =>

@@ -165,7 +165,7 @@ export function DuplicatesView() {
                       </p>
                     </div>
                     <button onClick={() => merge(g, ci)}
-                      className="text-xs px-2.5 py-1 rounded-full bg-primary text-white hover:bg-primary-hover">
+                      className="text-xs px-2.5 py-1 rounded-md bg-primary text-white hover:bg-primary-hover">
                       {t('dup_keep_primary')}
                     </button>
                   </div>

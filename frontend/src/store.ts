@@ -4,7 +4,7 @@ import { Contact, Group, Label, contactsApi } from './api'
 export type View =
   | 'all' | 'starred' | 'trashed' | 'group' | 'directory' | 'duplicates'
   | 'label' | 'archived' | 'birthdays' | 'reminders' | 'frequent' | 'followup'
-  | 'settings'
+  | 'settings' | 'other' | 'unit'
 
 export type ViewMode = 'list' | 'grid' | 'table'
 

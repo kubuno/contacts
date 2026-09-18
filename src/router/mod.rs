@@ -9,6 +9,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use crate::{
     handlers::{
         bulk, carddav, config, contacts, delta, directory, events, groups, health, import_export,
+        other_contacts,
         export, interactions, labels, reminders, settings, shared_book, shares,
     },
     middleware::{require_auth, require_internal_secret},
@@ -26,6 +27,10 @@ pub fn build(state: AppState) -> Router {
         .route("/contacts",                   get(contacts::list).post(contacts::create))
         .route("/contacts/bulk",              post(bulk::bulk))
         .route("/contacts/trash",             delete(contacts::empty_trash))
+        // "Other contacts": interlocutors reported by other modules, never saved.
+        .route("/other-contacts",          get(other_contacts::list))
+        .route("/other-contacts/:id",      delete(other_contacts::dismiss))
+        .route("/other-contacts/:id/save", post(other_contacts::save))
         .route("/contacts/duplicates",        get(contacts::duplicates))
         .route("/contacts/duplicates/merge",  post(contacts::merge))
         .route("/contacts/duplicates/ignore", post(contacts::ignore_duplicate))
@@ -90,6 +95,13 @@ pub fn build(state: AppState) -> Router {
     //
     // Contrat d'export module→core, v1 : cf. handlers::export.
     let internal = Router::new()
+        // Core → module event delivery. The core tries /ipc/events first and
+        // /events second, and posts X-Internal-Secret on BOTH — so both live
+        // behind the guard. Left open, either one lets anyone inject events:
+        // forged interlocutors would surface in "Other contacts".
+        .route("/ipc/events", post(events::handle_event))
+        .route("/events",     post(events::handle_event))
+        .route("/internal/interlocutors", post(other_contacts::record_seen))
         .route("/internal/export/describe", get(export::describe))
         .route("/internal/export/account",  post(export::account))
         .layer(middleware::from_fn_with_state(
@@ -100,7 +112,6 @@ pub fn build(state: AppState) -> Router {
 
     let public_routes = Router::new()
         .route("/health", get(health::health))
-        .route("/events", post(events::handle_event))
         // Public share view (token in path)
         .route("/shared/:token", get(shares::public_view))
         // CardDAV protocol (Basic-auth via the CardDAV token, not platform JWT)

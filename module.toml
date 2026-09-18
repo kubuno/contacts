@@ -179,5 +179,8 @@ label   = "Diffuser le carnet partagé"
 description = "Rend le carnet d'adresses de l'instance visible de tous les utilisateurs, en lecture seule. Seule l'administration y écrit."
 
 [events]
-subscribed = ["UserCreated", "UserUpdated", "UserDeleted", "MessageSent", "EventCreated"]
+# `*.interlocutor`: any module that deals with people (mail, chat…) publishes
+# whom the user exchanged with; they land in "Other contacts".
+subscribed = ["UserCreated", "UserUpdated", "UserDeleted", "MessageSent", "EventCreated",
+              "mail.interlocutor", "chat.interlocutor"]
 publishes  = ["ContactCreated", "ContactUpdated", "ContactDeleted"]

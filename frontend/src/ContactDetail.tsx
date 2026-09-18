@@ -10,7 +10,7 @@ import { MenuDropdown, type MenuItem, type MenuDropdownPos } from '@ui'
 import { Contact, contactsApi, type Interaction, type ChangeEntry } from './api'
 import { useContactsStore } from './store'
 import ContactAvatar from './ContactAvatar'
-import ContactEditor from './ContactEditor'
+import ContactEditor from './editor/ContactEditor'
 import ShareModal from './ShareModal'
 import { LabelChip } from './widgets'
 import { useConfirm } from '@kubuno/sdk'
@@ -132,7 +132,7 @@ export default function ContactDetail({ contact }: { contact: Contact }) {
         {/* Labels */}
         <div className="flex items-center gap-2 flex-wrap">
           {myLabels.map(l => <LabelChip key={l.id} name={l.name} color={l.color} onRemove={() => toggleLabel(l.id)} />)}
-          <button onClick={openLabelMenu} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border border-dashed border-border text-text-secondary hover:bg-surface-1">
+          <button onClick={openLabelMenu} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs border border-dashed border-border text-text-secondary hover:bg-surface-1">
             <Tag size={11} />{t('label_add')}
           </button>
         </div>

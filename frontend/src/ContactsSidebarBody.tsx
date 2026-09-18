@@ -1,25 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link as RouterLink, useLocation } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   Users, Star, GitMerge, Download, Trash2, Plus, Trash, Cake, Bell, Clock,
-  Archive, Settings, Tag, RotateCcw,
+  Archive, Settings, Tag, RotateCcw, Inbox, Building,
 } from 'lucide-react'
-import { useContactsStore, type View } from './store'
+import { useContactsStore } from './store'
 import { contactsApi } from './api'
 import { useConfirm } from '@kubuno/sdk'
 import { ConfirmDialog, Input } from '@ui'
 import { SidebarNavItem } from '@kubuno/sdk'
-import { hashTo, fromHash } from './hashRoute'
+import { hashTo } from './hashRoute'
 
 const LABEL_COLORS = ['#1a73e8', '#e8710a', '#1e8e3e', '#d93025', '#9334e6', '#12b5cb', '#f9ab00', '#e52592']
-
-// Views reachable through a sidebar hash link. Anything else in the hash is
-// none of our business and is left alone.
-const HASH_VIEWS: readonly string[] = [
-  'all', 'starred', 'birthdays', 'reminders', 'frequent', 'followup',
-  'duplicates', 'archived', 'trashed', 'settings', 'group', 'label',
-]
 
 export default function ContactsSidebarBody({ collapsed = false }: { collapsed?: boolean }) {
   const { t } = useTranslation('contacts')
@@ -30,17 +23,8 @@ export default function ContactsSidebarBody({ collapsed = false }: { collapsed?:
   const [newLabel, setNewLabel] = useState('')
   const [showNewLabel, setShowNewLabel] = useState(false)
   const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
-  const { hash } = useLocation()
 
   useEffect(() => { fetchLabels(); fetchDueCount() }, [])
-
-  // The hash is the source of truth for the selected view: a direct link, a
-  // sidebar click and the Back button all end up here.
-  useEffect(() => {
-    const r = fromHash(hash)
-    if (!r || !HASH_VIEWS.includes(r.kind)) return
-    setView(r.kind as View, r.id ?? undefined)
-  }, [hash, setView])
 
   async function createLabel() {
     if (!newLabel.trim()) return
@@ -105,6 +89,10 @@ export default function ContactsSidebarBody({ collapsed = false }: { collapsed?:
       <nav className={`flex-1 overflow-y-auto space-y-0.5 px-2`}>
         <Nav label={t('title_all')} icon={<Users size={20} />} active={view === 'all'} to={hashTo('all')} badge={total} />
         <Nav label={t('title_starred')} icon={<Star size={20} />} active={view === 'starred'} to={hashTo('starred')} />
+        {/* People met elsewhere but never saved, and the accounts of one's own
+            organisational unit: two ways in that are not the address book. */}
+        <Nav label={t('other_contacts')} icon={<Inbox size={20} />} active={view === 'other'} to={hashTo('other')} />
+        <Nav label={t('unit_members')} icon={<Building size={20} />} active={view === 'unit'} to={hashTo('unit')} />
 
         {/* Smart views */}
         {collapsed ? <div className="mx-1 my-1 h-px bg-border" /> : (

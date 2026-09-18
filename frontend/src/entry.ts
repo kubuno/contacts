@@ -5,12 +5,13 @@
  * `sdkVersion` permet de rejeter une incompatibilité de contrat.
  */
 import { lazy } from 'react'
-import { Users as ContactsIcon } from 'lucide-react'
+import { Users as ContactsIcon, Star, Building2 } from 'lucide-react'
 import {
   RouteRegistry,
   WaffleAppRegistry,
   FaviconRegistry,
   ModuleSettingsRegistry,
+  ExtensionRegistry,
   ModuleServiceRegistry,
   SlotRegistry,
   registerMentionProvider,
@@ -36,7 +37,7 @@ import { registerContactsAdmin } from './admin/ContactsAdminPanel'
 export const sdkVersion = SDK_VERSION
 
 export function register() {
-  FaviconRegistry.register('contacts', '/contacts-logo.svg')
+  FaviconRegistry.register('contacts', '/contacts-logo.png')
 
   // Contact picker, mounted globally by the host shell: any module can open it
   // without navigating to /contacts.
@@ -75,6 +76,61 @@ export function register() {
     },
   })
 
+  // What this module knows about a PERSON, offered to whoever shows one — a
+  // guest's card in the calendar today. The same shared-point bargain as the
+  // mentions above: a generic key, no consumer named, and an instance without
+  // contacts simply shows what the directory knows.
+  //
+  // Asked by address, because that is the one identifier every source shares.
+  // ⚠️ `register(point, moduleId, entry)` — le point d'abord.
+  ExtensionRegistry.register('person.details', 'contacts', {
+    async lookup(person: { email?: string; userId?: string }) {
+      // By address when there is one, by ACCOUNT otherwise: an instance whose
+      // directory keeps addresses private hands the picker an id and nothing
+      // else, and a source keyed on the address alone would find nobody.
+      const needle = person.email?.trim().toLowerCase()
+      const { data } = await contactsApi.listContacts({
+        q: needle ?? '', limit: needle ? 5 : 200, filter: 'has_email',
+      })
+      const c = needle
+        ? data.contacts.find(x => (x.emails ?? []).some(e => e.value?.trim().toLowerCase() === needle))
+        : data.contacts.find(x => x.kubuno_user_id === person.userId)
+      if (!c) return {}
+
+      const details: Array<{ kind: string; value: string; label?: string }> = []
+      const add = (kind: string, value?: string | null, label?: string) => {
+        if (value && value.trim()) details.push({ kind, value: value.trim(), label })
+      }
+      add('job_title',    c.job_title)
+      add('organisation', c.organization)
+      add('department',   c.department)
+      for (const p of (c.phones ?? []).slice(0, 2)) add('phone', p.value, p.label ?? undefined)
+      const a = (c.addresses ?? [])[0]
+      if (a) add('address', [a.street, a.city, a.country].filter(Boolean).join(', '))
+
+      // A named address elsewhere — a site, a profile page.
+      const links = (c.urls ?? [])
+        .filter(u => u.value?.trim())
+        .slice(0, 2)
+        .map(u => ({ label: u.label?.trim() || u.value.trim(), url: u.value.trim() }))
+
+      return {
+        // The photo this module holds for them — chosen for this person, so it
+        // outranks the one derived from an account id.
+        avatar: c.avatar_path ? contactsApi.avatarUrl(c.id) : undefined,
+        details,
+        links,
+        actions: [{
+          id: 'contacts.open',
+          label: 'Ouvrir la vue détaillée',
+          icon: 'open',
+          primary: true,
+          run: () => { window.location.assign(`/contacts?contact=${c.id}`) },
+        }],
+      }
+    },
+  })
+
   // `contacts.contact` JSON envelopes ("Copier pour Kubuno" in the contact menu,
   // or the pickContact service): consumer modules (chat, notes…) resolve this
   // card through `core.data-card`. `contacts.person` = legacy type, kept so
@@ -106,6 +162,15 @@ export function register() {
     routePrefix: '/contacts',
     SidebarBody: ContactsSidebarBody,
     collapsedBody: true,
+    // Bottom nav (portrait) / left rail (landscape) on mobile: the primary
+    // destinations, each a real route so the shell's NavLink can light the
+    // active tab (a hash cannot — every hash shares the /contacts pathname). The
+    // secondary views (smart views, labels, groups, trash…) stay in the drawer.
+    mobileTabs: [
+      { id: 'all',       labelKey: 'contacts:title_all',       Icon: ContactsIcon, path: '/contacts',           end: true },
+      { id: 'starred',   labelKey: 'contacts:title_starred',   Icon: Star,         path: '/contacts/starred' },
+      { id: 'directory', labelKey: 'contacts:title_directory', Icon: Building2,    path: '/contacts/directory' },
+    ],
   })
 
   useSearchStore.getState().register({
@@ -134,9 +199,14 @@ export function register() {
   // Routes
   const ContactsApp          = lazy(() => import('./ContactsApp'))
   const ContactsSettingsPage = lazy(() => import('./ContactsSettingsPage'))
+  const ContactDetailPage    = lazy(() => import('./detail/ContactDetailPage'))
 
-  RouteRegistry.register('contacts',         ContactsApp)
-  RouteRegistry.register('contacts/starred', ContactsApp)
-  RouteRegistry.register('contacts/trashed', ContactsApp)
+  RouteRegistry.register('contacts',          ContactsApp)
+  RouteRegistry.register('contacts/starred',  ContactsApp)
+  RouteRegistry.register('contacts/trashed',  ContactsApp)
+  RouteRegistry.register('contacts/directory', ContactsApp)
+  // A contact has its own address, like Google's /person/<id>: the card is a
+  // destination, not a strip beside the list.
+  RouteRegistry.register('contacts/person/:id', ContactDetailPage)
   RouteRegistry.register('contacts/settings', ContactsSettingsPage)
 }

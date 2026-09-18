@@ -1,6 +1,6 @@
 [package]
 name        = "kubuno-contacts"
-version     = "0.1.7"
+version     = "0.1.8"
 edition     = "2021"
 description = "Kubuno Contacts — carnet d'adresses, groupes, CardDAV, annuaire d'instance"
 license     = "AGPL-3.0"

@@ -50,8 +50,10 @@ pub async fn save(
 ) -> Result<Json<Value>> {
     let other = svc::get(&state.db, user.id, id).await?;
 
-    let mut dto = CreateContactDto::default();
-    dto.given_name = other.display_name.clone();
+    let mut dto = CreateContactDto {
+        given_name: other.display_name.clone(),
+        ..Default::default()
+    };
     match other.kind.as_str() {
         "phone" => dto.phones = vec![crate::models::contact::ContactField {
             label: None, field_type: "mobile".into(), value: other.value.clone(),

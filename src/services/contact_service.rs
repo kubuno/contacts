@@ -58,7 +58,7 @@ fn split_respecting_quotes(raw: &str) -> Vec<String> {
 }
 
 /// Appends the WHERE predicate for one search token to the query builder.
-fn push_token_condition(qb: &mut QueryBuilder<'_, Postgres>, tok: &SearchToken) {
+fn push_token_condition(qb: &mut QueryBuilder<Postgres>, tok: &SearchToken) {
     let like = format!("%{}%", tok.term);
     match tok.scope.as_deref() {
         Some("email") => {
@@ -151,7 +151,7 @@ pub async fn list_contacts_capped(
     let archived = params.archived.unwrap_or(false);
 
     // Build the shared FROM/WHERE so list and count stay in sync.
-    let build_filters = |qb: &mut QueryBuilder<'_, Postgres>| {
+    let build_filters = |qb: &mut QueryBuilder<Postgres>| {
         qb.push(" WHERE c.owner_id = ").push_bind(owner_id);
         qb.push(" AND c.is_trashed = ").push_bind(trashed);
         // Archived contacts are hidden from the normal lists unless requested.

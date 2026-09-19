@@ -250,7 +250,10 @@ async fn load_shares(state: &AppState, owner: Uuid) -> Result<Value> {
     .await
 }
 
-async fn json_rows(state: &AppState, sql: &str, owner: Uuid) -> Result<Value> {
+// `&'static str` rather than `&str`: the driver accepts a literal as a safe SQL
+// string, so the signature itself now forbids handing this helper anything
+// built at run time. No audit marker needed — the compiler enforces it.
+async fn json_rows(state: &AppState, sql: &'static str, owner: Uuid) -> Result<Value> {
     sqlx::query_scalar::<_, Value>(sql)
         .bind(owner)
         .fetch_one(&state.db)

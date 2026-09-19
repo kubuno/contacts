@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -33,23 +33,76 @@ pub async fn run(db: PgPool, settings: Settings) {
     }
 }
 
+/// The same instant one year later. February 29th has no counterpart in a
+/// common year, so it falls back to the same number of days ahead.
+fn next_year(at: DateTime<Utc>) -> DateTime<Utc> {
+    at.with_year(at.year() + 1)
+        .unwrap_or_else(|| at + chrono::Duration::days(365))
+}
+
 async fn tick(db: &PgPool, settings: &Settings) -> Result<(), sqlx::Error> {
-    // Claim due reminders atomically with SKIP LOCKED so concurrent instances
-    // never fire the same reminder twice.
+    let now = Utc::now();
+
+    // List the candidates, then claim each one on its own. The claim is the
+    // UPDATE itself: it only touches a row that is still unnotified, so the
+    // number of rows it changed IS the proof of ownership — exactly one worker
+    // can see 1. Reading the candidates under `FOR UPDATE SKIP LOCKED` would
+    // prove nothing here, because a statement run outside an explicit
+    // transaction commits (and releases its row locks) the moment it returns.
+    // The guard column is also the only form of this that any SQL engine can
+    // express: neither SQLite nor MariaDB offers `SKIP LOCKED`.
     let due: Vec<DueReminder> = sqlx::query_as::<_, DueReminder>(
         "SELECT r.id, r.owner_id, r.contact_id, r.kind, r.message, r.recurrence, r.remind_at,
                 c.display_name AS contact_name
          FROM contacts.reminders r
          JOIN contacts.contacts c ON c.id = r.contact_id
-         WHERE r.is_done = FALSE AND r.notified_at IS NULL AND r.remind_at <= NOW()
+         WHERE r.is_done = FALSE AND r.notified_at IS NULL AND r.remind_at <= $1
          ORDER BY r.remind_at ASC
-         LIMIT 50
-         FOR UPDATE OF r SKIP LOCKED",
+         LIMIT 50",
     )
+    .bind(now)
     .fetch_all(db)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "Rappels : lecture des échéances impossible");
+        e
+    })?;
 
     for r in due {
+        // One statement both claims the reminder and leaves it in its final
+        // state, so a crash can never strand a half-fired reminder: a yearly
+        // one is moved to next year (its old date is part of the guard), a
+        // one-shot one is stamped notified.
+        let claim = if r.recurrence == "yearly" {
+            sqlx::query(
+                "UPDATE contacts.reminders SET remind_at = $2
+                 WHERE id = $1 AND is_done = FALSE AND notified_at IS NULL AND remind_at = $3",
+            )
+            .bind(r.id)
+            .bind(next_year(r.remind_at))
+            .bind(r.remind_at)
+        } else {
+            sqlx::query(
+                "UPDATE contacts.reminders SET notified_at = $2
+                 WHERE id = $1 AND is_done = FALSE AND notified_at IS NULL",
+            )
+            .bind(r.id)
+            .bind(now)
+        };
+        let claimed = claim
+            .execute(db)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, reminder_id = %r.id, "Rappels : réservation impossible");
+                e
+            })?
+            .rows_affected();
+        if claimed != 1 {
+            // Another worker got there first, or the reminder was closed
+            // between the two statements. Not ours to fire.
+            continue;
+        }
+
         let title = match r.kind.as_str() {
             "birthday" => format!("🎂 Anniversaire de {}", r.contact_name),
             _ => format!("Rappel : {}", r.contact_name),
@@ -67,24 +120,6 @@ async fn tick(db: &PgPool, settings: &Settings) -> Result<(), sqlx::Error> {
             }),
         );
         core_client::publish(settings, event).await;
-
-        if r.recurrence == "yearly" {
-            // Roll forward to next year and re-arm.
-            sqlx::query(
-                "UPDATE contacts.reminders
-                 SET remind_at = $2 + INTERVAL '1 year', notified_at = NULL
-                 WHERE id = $1",
-            )
-            .bind(r.id)
-            .bind(r.remind_at)
-            .execute(db)
-            .await?;
-        } else {
-            sqlx::query("UPDATE contacts.reminders SET notified_at = NOW() WHERE id = $1")
-                .bind(r.id)
-                .execute(db)
-                .await?;
-        }
     }
     Ok(())
 }

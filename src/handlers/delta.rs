@@ -28,12 +28,14 @@ async fn rows(
     cursor: i64,
     limit: i64,
 ) -> Result<Vec<(Uuid, i64, String)>> {
-    let out = sqlx::query_as::<_, (Uuid, i64, String)>(&format!(
+    // Audited: `live` and `tomb` are table names this module passes as literals
+    // from its four call sites; every value is bound.
+    let out = sqlx::query_as::<_, (Uuid, i64, String)>(sqlx::AssertSqlSafe(format!(
         r#"SELECT id, change_seq, 'live' AS src FROM {live} WHERE owner_id=$1 AND change_seq>$2
            UNION ALL
            SELECT id, change_seq, 'tomb' AS src FROM {tomb} WHERE owner_id=$1 AND change_seq>$2
            ORDER BY change_seq LIMIT $3"#
-    ))
+    )))
     .bind(user)
     .bind(cursor)
     .bind(limit)
@@ -63,9 +65,10 @@ pub async fn contacts_delta(
             changes.push(json!({ "uuid": id, "kind": "deleted", "change_seq": seq }));
             continue;
         }
-        let contact: Option<Value> = sqlx::query_scalar(&format!(
+        // Audited: CONTACT_COLS is a const column list of this module.
+        let contact: Option<Value> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT to_jsonb(c) FROM (SELECT {CONTACT_COLS} FROM contacts.contacts WHERE id=$1) c"
-        ))
+        )))
         .bind(id)
         .fetch_optional(&state.db)
         .await?;

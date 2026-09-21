@@ -1,17 +1,28 @@
 //! Sync deltas for the local-first pull (contacts / labels / groups / reminders).
-//! Same contract as the office sub-modules: owner-scoped changes past `cursor`
-//! (monotonic change_seq), live rows + tombstones, ordered, paginated.
-//! `kind ∈ modified | deleted`. Contact changes inline their `label_ids`; group
-//! changes inline their `member_ids`.
+//! Owner-scoped changes past `cursor` (monotonic change_seq), live rows +
+//! tombstones, ordered, paginated. `kind ∈ modified | deleted`. Contact changes
+//! inline their `label_ids`; group changes inline their `member_ids`.
+//!
+//! The change feed comes from `kubuno_db::journal::changes_since` (the portable
+//! `live UNION ALL tombstones`, replacing the PostgreSQL-only sequence/trigger
+//! delta layer). Row bodies are reselected as typed structs and serialised in
+//! Rust — no `to_jsonb`.
 
 use axum::{
     extract::{Query, State},
     Extension, Json,
 };
+use kubuno_db::{journal, params};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::{errors::Result, middleware::ContactsUser, state::AppState};
+use crate::{
+    errors::Result,
+    middleware::ContactsUser,
+    models::{contact::Contact, group::Group, label::Label, reminder::Reminder},
+    state::AppState,
+    sync,
+};
 
 #[derive(serde::Deserialize)]
 pub struct DeltaQuery {
@@ -20,35 +31,10 @@ pub struct DeltaQuery {
     limit: Option<i64>,
 }
 
-async fn rows(
-    state: &AppState,
-    user: Uuid,
-    live: &str,
-    tomb: &str,
-    cursor: i64,
-    limit: i64,
-) -> Result<Vec<(Uuid, i64, String)>> {
-    // Audited: `live` and `tomb` are table names this module passes as literals
-    // from its four call sites; every value is bound.
-    let out = sqlx::query_as::<_, (Uuid, i64, String)>(sqlx::AssertSqlSafe(format!(
-        r#"SELECT id, change_seq, 'live' AS src FROM {live} WHERE owner_id=$1 AND change_seq>$2
-           UNION ALL
-           SELECT id, change_seq, 'tomb' AS src FROM {tomb} WHERE owner_id=$1 AND change_seq>$2
-           ORDER BY change_seq LIMIT $3"#
-    )))
-    .bind(user)
-    .bind(cursor)
-    .bind(limit)
-    .fetch_all(&state.db)
-    .await?;
-    Ok(out)
+#[derive(sqlx::FromRow)]
+struct IdRow {
+    id: Uuid,
 }
-
-const CONTACT_COLS: &str = "id, owner_id, given_name, middle_name, family_name, name_prefix, name_suffix, \
-    nickname, display_name, organization, department, job_title, avatar_path, avatar_color, \
-    emails, phones, addresses, urls, dates, relations, instant_messages, custom_fields, notes, \
-    is_starred, is_trashed, trashed_at, kubuno_user_id, is_archived, archived_at, is_blocked, \
-    last_interaction_at, interaction_count, pronouns, vcard_uid, etag, import_source, created_at, updated_at";
 
 pub async fn contacts_delta(
     State(state): State<AppState>,
@@ -56,32 +42,48 @@ pub async fn contacts_delta(
     Query(q): Query<DeltaQuery>,
 ) -> Result<Json<Value>> {
     let limit = q.limit.unwrap_or(200).clamp(1, 500);
-    let rows = rows(&state, user.id, "contacts.contacts", "contacts.contact_tombstones", q.cursor, limit).await?;
-    let has_more = rows.len() as i64 == limit;
-    let new_cursor = rows.last().map(|r| r.1).unwrap_or(q.cursor);
-    let mut changes = Vec::with_capacity(rows.len());
-    for (id, seq, src) in &rows {
-        if src == "tomb" {
-            changes.push(json!({ "uuid": id, "kind": "deleted", "change_seq": seq }));
+    let feed = journal::changes_since(
+        &state.db, sync::CONTACTS_TABLE, sync::CONTACT_TOMBSTONES, user.id, q.cursor, limit,
+    )
+    .await?;
+    let has_more = feed.len() as i64 == limit;
+    let new_cursor = feed.last().map(|c| c.change_seq).unwrap_or(q.cursor);
+
+    let mut changes = Vec::with_capacity(feed.len());
+    for c in &feed {
+        if c.deleted {
+            changes.push(json!({ "uuid": c.id, "kind": "deleted", "change_seq": c.change_seq }));
             continue;
         }
-        // Audited: CONTACT_COLS is a const column list of this module.
-        let contact: Option<Value> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            "SELECT to_jsonb(c) FROM (SELECT {CONTACT_COLS} FROM contacts.contacts WHERE id=$1) c"
-        )))
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+        let contact = state
+            .db
+            .fetch_optional_as::<Contact>(
+                "SELECT * FROM contacts.contacts WHERE id = $1",
+                params![c.id],
+            )
+            .await?;
         let Some(contact) = contact else { continue };
-        let label_ids: Vec<Uuid> = sqlx::query_scalar(
-            "SELECT label_id FROM contacts.contact_labels WHERE contact_id=$1",
-        )
-        .bind(id)
-        .fetch_all(&state.db)
-        .await?;
-        changes.push(json!({ "uuid": id, "kind": "modified", "change_seq": seq, "contact": contact, "label_ids": label_ids }));
+        let label_ids: Vec<Uuid> = state
+            .db
+            .fetch_all_as::<LabelIdRow>(
+                "SELECT label_id FROM contacts.contact_labels WHERE contact_id = $1",
+                params![c.id],
+            )
+            .await?
+            .into_iter()
+            .map(|r| r.label_id)
+            .collect();
+        changes.push(json!({
+            "uuid": c.id, "kind": "modified", "change_seq": c.change_seq,
+            "contact": contact, "label_ids": label_ids,
+        }));
     }
     Ok(Json(json!({ "changes": changes, "cursor": new_cursor, "has_more": has_more })))
+}
+
+#[derive(sqlx::FromRow)]
+struct LabelIdRow {
+    label_id: Uuid,
 }
 
 pub async fn labels_delta(
@@ -90,24 +92,28 @@ pub async fn labels_delta(
     Query(q): Query<DeltaQuery>,
 ) -> Result<Json<Value>> {
     let limit = q.limit.unwrap_or(200).clamp(1, 500);
-    let rows = rows(&state, user.id, "contacts.labels", "contacts.label_tombstones", q.cursor, limit).await?;
-    let has_more = rows.len() as i64 == limit;
-    let new_cursor = rows.last().map(|r| r.1).unwrap_or(q.cursor);
-    let mut changes = Vec::with_capacity(rows.len());
-    for (id, seq, src) in &rows {
-        if src == "tomb" {
-            changes.push(json!({ "uuid": id, "kind": "deleted", "change_seq": seq }));
+    let feed = journal::changes_since(
+        &state.db, sync::LABELS_TABLE, sync::LABEL_TOMBSTONES, user.id, q.cursor, limit,
+    )
+    .await?;
+    let has_more = feed.len() as i64 == limit;
+    let new_cursor = feed.last().map(|c| c.change_seq).unwrap_or(q.cursor);
+
+    let mut changes = Vec::with_capacity(feed.len());
+    for c in &feed {
+        if c.deleted {
+            changes.push(json!({ "uuid": c.id, "kind": "deleted", "change_seq": c.change_seq }));
             continue;
         }
-        let label: Option<Value> = sqlx::query_scalar(
-            "SELECT to_jsonb(l) FROM (SELECT id, owner_id, name, color, icon, is_system, position, created_at, updated_at \
-             FROM contacts.labels WHERE id=$1) l",
-        )
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+        let label = state
+            .db
+            .fetch_optional_as::<Label>(
+                "SELECT * FROM contacts.labels WHERE id = $1",
+                params![c.id],
+            )
+            .await?;
         let Some(label) = label else { continue };
-        changes.push(json!({ "uuid": id, "kind": "modified", "change_seq": seq, "label": label }));
+        changes.push(json!({ "uuid": c.id, "kind": "modified", "change_seq": c.change_seq, "label": label }));
     }
     Ok(Json(json!({ "changes": changes, "cursor": new_cursor, "has_more": has_more })))
 }
@@ -118,30 +124,41 @@ pub async fn groups_delta(
     Query(q): Query<DeltaQuery>,
 ) -> Result<Json<Value>> {
     let limit = q.limit.unwrap_or(200).clamp(1, 500);
-    let rows = rows(&state, user.id, "contacts.groups", "contacts.group_tombstones", q.cursor, limit).await?;
-    let has_more = rows.len() as i64 == limit;
-    let new_cursor = rows.last().map(|r| r.1).unwrap_or(q.cursor);
-    let mut changes = Vec::with_capacity(rows.len());
-    for (id, seq, src) in &rows {
-        if src == "tomb" {
-            changes.push(json!({ "uuid": id, "kind": "deleted", "change_seq": seq }));
+    let feed = journal::changes_since(
+        &state.db, sync::GROUPS_TABLE, sync::GROUP_TOMBSTONES, user.id, q.cursor, limit,
+    )
+    .await?;
+    let has_more = feed.len() as i64 == limit;
+    let new_cursor = feed.last().map(|c| c.change_seq).unwrap_or(q.cursor);
+
+    let mut changes = Vec::with_capacity(feed.len());
+    for c in &feed {
+        if c.deleted {
+            changes.push(json!({ "uuid": c.id, "kind": "deleted", "change_seq": c.change_seq }));
             continue;
         }
-        let group: Option<Value> = sqlx::query_scalar(
-            "SELECT to_jsonb(g) FROM (SELECT id, owner_id, name, color, is_system, created_at, updated_at \
-             FROM contacts.groups WHERE id=$1) g",
-        )
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+        let group = state
+            .db
+            .fetch_optional_as::<Group>(
+                "SELECT * FROM contacts.groups WHERE id = $1",
+                params![c.id],
+            )
+            .await?;
         let Some(group) = group else { continue };
-        let member_ids: Vec<Uuid> = sqlx::query_scalar(
-            "SELECT contact_id FROM contacts.group_members WHERE group_id=$1",
-        )
-        .bind(id)
-        .fetch_all(&state.db)
-        .await?;
-        changes.push(json!({ "uuid": id, "kind": "modified", "change_seq": seq, "group": group, "member_ids": member_ids }));
+        let member_ids: Vec<Uuid> = state
+            .db
+            .fetch_all_as::<IdRow>(
+                "SELECT contact_id AS id FROM contacts.group_members WHERE group_id = $1",
+                params![c.id],
+            )
+            .await?
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        changes.push(json!({
+            "uuid": c.id, "kind": "modified", "change_seq": c.change_seq,
+            "group": group, "member_ids": member_ids,
+        }));
     }
     Ok(Json(json!({ "changes": changes, "cursor": new_cursor, "has_more": has_more })))
 }
@@ -152,24 +169,28 @@ pub async fn reminders_delta(
     Query(q): Query<DeltaQuery>,
 ) -> Result<Json<Value>> {
     let limit = q.limit.unwrap_or(200).clamp(1, 500);
-    let rows = rows(&state, user.id, "contacts.reminders", "contacts.reminder_tombstones", q.cursor, limit).await?;
-    let has_more = rows.len() as i64 == limit;
-    let new_cursor = rows.last().map(|r| r.1).unwrap_or(q.cursor);
-    let mut changes = Vec::with_capacity(rows.len());
-    for (id, seq, src) in &rows {
-        if src == "tomb" {
-            changes.push(json!({ "uuid": id, "kind": "deleted", "change_seq": seq }));
+    let feed = journal::changes_since(
+        &state.db, sync::REMINDERS_TABLE, sync::REMINDER_TOMBSTONES, user.id, q.cursor, limit,
+    )
+    .await?;
+    let has_more = feed.len() as i64 == limit;
+    let new_cursor = feed.last().map(|c| c.change_seq).unwrap_or(q.cursor);
+
+    let mut changes = Vec::with_capacity(feed.len());
+    for c in &feed {
+        if c.deleted {
+            changes.push(json!({ "uuid": c.id, "kind": "deleted", "change_seq": c.change_seq }));
             continue;
         }
-        let reminder: Option<Value> = sqlx::query_scalar(
-            "SELECT to_jsonb(r) FROM (SELECT id, owner_id, contact_id, kind, message, remind_at, recurrence, \
-             is_done, notified_at, created_at FROM contacts.reminders WHERE id=$1) r",
-        )
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+        let reminder = state
+            .db
+            .fetch_optional_as::<Reminder>(
+                "SELECT * FROM contacts.reminders WHERE id = $1",
+                params![c.id],
+            )
+            .await?;
         let Some(reminder) = reminder else { continue };
-        changes.push(json!({ "uuid": id, "kind": "modified", "change_seq": seq, "reminder": reminder }));
+        changes.push(json!({ "uuid": c.id, "kind": "modified", "change_seq": c.change_seq, "reminder": reminder }));
     }
     Ok(Json(json!({ "changes": changes, "cursor": new_cursor, "has_more": has_more })))
 }

@@ -1,7 +1,7 @@
 use base64::Engine;
+use kubuno_db::{new_id, params, DbPool};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
@@ -26,11 +26,9 @@ pub fn sha256_hex(input: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Creates a public link, under the instance policy: public links may be
-/// switched off entirely, may be required to carry a password, and may be
-/// capped in lifetime.
+/// Creates a public link, under the instance policy.
 pub async fn create_share(
-    db: &PgPool,
+    db: &DbPool,
     owner_id: Uuid,
     dto: &CreateShareDto,
     cfg: &InstanceConfig,
@@ -48,27 +46,31 @@ pub async fn create_share(
             "Cette instance exige un mot de passe sur les liens de partage".into(),
         ));
     }
-    // Validate ownership of the shared target.
     if let Some(cid) = dto.contact_id {
-        let owns = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM contacts.contacts WHERE id = $1 AND owner_id = $2)",
-        )
-        .bind(cid).bind(owner_id).fetch_one(db).await.map_err(ContactsError::Database)?;
+        let owns = db
+            .fetch_scalar::<i64>(
+                "SELECT COUNT(*) FROM contacts.contacts WHERE id = $1 AND owner_id = $2",
+                params![cid, owner_id],
+            )
+            .await
+            .map_err(ContactsError::Database)?
+            > 0;
         if !owns { return Err(ContactsError::NotFound(format!("Contact {cid}"))); }
     }
     if let Some(gid) = dto.group_id {
-        let owns = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM contacts.groups WHERE id = $1 AND owner_id = $2)",
-        )
-        .bind(gid).bind(owner_id).fetch_one(db).await.map_err(ContactsError::Database)?;
+        let owns = db
+            .fetch_scalar::<i64>(
+                "SELECT COUNT(*) FROM contacts.groups WHERE id = $1 AND owner_id = $2",
+                params![gid, owner_id],
+            )
+            .await
+            .map_err(ContactsError::Database)?
+            > 0;
         if !owns { return Err(ContactsError::NotFound(format!("Groupe {gid}"))); }
     }
 
     let token = gen_token();
     let password_hash = dto.password.as_ref().map(|p| sha256_hex(p));
-    // A ceiling both shortens a longer request and gives an expiry to a link
-    // asked for without one — otherwise the cap would be trivial to bypass by
-    // simply not choosing a duration.
     let days = if cfg.share_max_expiry_days > 0 {
         Some(
             dto.expires_in_days
@@ -79,40 +81,47 @@ pub async fn create_share(
         dto.expires_in_days
     };
     let expires_at = days.map(|d| chrono::Utc::now() + chrono::Duration::days(d));
+    let id = new_id();
+    let now = chrono::Utc::now();
 
-    sqlx::query_as::<_, Share>(
-        "INSERT INTO contacts.shares
-         (owner_id, contact_id, group_id, token, permission, expires_at, password_hash, max_accesses)
-         VALUES ($1, $2, $3, $4, 'view', $5, $6, $7)
-         RETURNING *",
+    db.execute(
+        "INSERT INTO contacts.shares \
+         (id, owner_id, contact_id, group_id, token, permission, expires_at, password_hash, max_accesses, access_count, created_at) \
+         VALUES ($1, $2, $3, $4, $5, 'view', $6, $7, $8, 0, $9)",
+        params![
+            id, owner_id, dto.contact_id, dto.group_id, token,
+            expires_at, password_hash, dto.max_accesses, now,
+        ],
     )
-    .bind(owner_id)
-    .bind(dto.contact_id)
-    .bind(dto.group_id)
-    .bind(&token)
-    .bind(expires_at)
-    .bind(&password_hash)
-    .bind(dto.max_accesses)
-    .fetch_one(db)
     .await
-    .map_err(ContactsError::Database)
+    .map_err(ContactsError::Database)?;
+
+    db.fetch_optional_as::<Share>(
+        "SELECT * FROM contacts.shares WHERE id = $1",
+        params![id],
+    )
+    .await
+    .map_err(ContactsError::Database)?
+    .ok_or_else(|| ContactsError::NotFound("Partage".into()))
 }
 
-pub async fn list_shares(db: &PgPool, owner_id: Uuid) -> Result<Vec<Share>> {
-    sqlx::query_as::<_, Share>(
+pub async fn list_shares(db: &DbPool, owner_id: Uuid) -> Result<Vec<Share>> {
+    db.fetch_all_as::<Share>(
         "SELECT * FROM contacts.shares WHERE owner_id = $1 ORDER BY created_at DESC",
+        params![owner_id],
     )
-    .bind(owner_id)
-    .fetch_all(db)
     .await
     .map_err(ContactsError::Database)
 }
 
-pub async fn revoke_share(db: &PgPool, owner_id: Uuid, id: Uuid) -> Result<()> {
-    let rows = sqlx::query("DELETE FROM contacts.shares WHERE id = $1 AND owner_id = $2")
-        .bind(id).bind(owner_id)
-        .execute(db).await.map_err(ContactsError::Database)?
-        .rows_affected();
+pub async fn revoke_share(db: &DbPool, owner_id: Uuid, id: Uuid) -> Result<()> {
+    let rows = db
+        .execute(
+            "DELETE FROM contacts.shares WHERE id = $1 AND owner_id = $2",
+            params![id, owner_id],
+        )
+        .await
+        .map_err(ContactsError::Database)?;
     if rows == 0 { return Err(ContactsError::NotFound(format!("Partage {id}"))); }
     Ok(())
 }
@@ -122,17 +131,16 @@ pub struct SharedPayload {
     pub contacts: Vec<Contact>,
 }
 
-/// Resolves a public share token to the contact(s) behind it, enforcing
-/// expiry, access caps and the optional password.
-pub async fn resolve_share(db: &PgPool, token: &str, password: Option<&str>) -> Result<SharedPayload> {
-    let share = sqlx::query_as::<_, Share>(
-        "SELECT * FROM contacts.shares WHERE token = $1",
-    )
-    .bind(token)
-    .fetch_optional(db)
-    .await
-    .map_err(ContactsError::Database)?
-    .ok_or_else(|| ContactsError::NotFound("Partage introuvable".into()))?;
+/// Resolves a public share token to the contact(s) behind it.
+pub async fn resolve_share(db: &DbPool, token: &str, password: Option<&str>) -> Result<SharedPayload> {
+    let share = db
+        .fetch_optional_as::<Share>(
+            "SELECT * FROM contacts.shares WHERE token = $1",
+            params![token],
+        )
+        .await
+        .map_err(ContactsError::Database)?
+        .ok_or_else(|| ContactsError::NotFound("Partage introuvable".into()))?;
 
     if let Some(exp) = share.expires_at {
         if exp < chrono::Utc::now() {
@@ -145,13 +153,14 @@ pub async fn resolve_share(db: &PgPool, token: &str, password: Option<&str>) -> 
         }
     }
     // Password gate: stored as a SHA-256 hex digest.
-    let stored_hash = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT password_hash FROM contacts.shares WHERE id = $1",
-    )
-    .bind(share.id)
-    .fetch_one(db)
-    .await
-    .map_err(ContactsError::Database)?;
+    let stored_hash: Option<String> = db
+        .fetch_optional_scalar::<Option<String>>(
+            "SELECT password_hash FROM contacts.shares WHERE id = $1",
+            params![share.id],
+        )
+        .await
+        .map_err(ContactsError::Database)?
+        .flatten();
     if let Some(hash) = stored_hash {
         match password {
             Some(p) if sha256_hex(p) == hash => {}
@@ -160,36 +169,37 @@ pub async fn resolve_share(db: &PgPool, token: &str, password: Option<&str>) -> 
     }
 
     let (kind, contacts) = if let Some(cid) = share.contact_id {
-        let c = sqlx::query_as::<_, Contact>(
-            "SELECT * FROM contacts.contacts WHERE id = $1 AND is_trashed = FALSE",
-        )
-        .bind(cid)
-        .fetch_optional(db)
-        .await
-        .map_err(ContactsError::Database)?
-        .ok_or_else(|| ContactsError::NotFound("Contact introuvable".into()))?;
+        let c = db
+            .fetch_optional_as::<Contact>(
+                "SELECT * FROM contacts.contacts WHERE id = $1 AND is_trashed = FALSE",
+                params![cid],
+            )
+            .await
+            .map_err(ContactsError::Database)?
+            .ok_or_else(|| ContactsError::NotFound("Contact introuvable".into()))?;
         ("contact".to_string(), vec![c])
     } else if let Some(gid) = share.group_id {
-        let list = sqlx::query_as::<_, Contact>(
-            "SELECT c.* FROM contacts.contacts c
-             JOIN contacts.group_members gm ON gm.contact_id = c.id
-             WHERE gm.group_id = $1 AND c.is_trashed = FALSE
-             ORDER BY c.display_name ASC",
-        )
-        .bind(gid)
-        .fetch_all(db)
-        .await
-        .map_err(ContactsError::Database)?;
+        let list = db
+            .fetch_all_as::<Contact>(
+                "SELECT c.* FROM contacts.contacts c \
+                 JOIN contacts.group_members gm ON gm.contact_id = c.id \
+                 WHERE gm.group_id = $1 AND c.is_trashed = FALSE \
+                 ORDER BY c.display_name ASC",
+                params![gid],
+            )
+            .await
+            .map_err(ContactsError::Database)?;
         ("group".to_string(), list)
     } else {
         ("empty".to_string(), vec![])
     };
 
-    sqlx::query("UPDATE contacts.shares SET access_count = access_count + 1 WHERE id = $1")
-        .bind(share.id)
-        .execute(db)
-        .await
-        .map_err(ContactsError::Database)?;
+    db.execute(
+        "UPDATE contacts.shares SET access_count = access_count + 1 WHERE id = $1",
+        params![share.id],
+    )
+    .await
+    .map_err(ContactsError::Database)?;
 
     Ok(SharedPayload { kind, contacts })
 }

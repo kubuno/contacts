@@ -9,6 +9,30 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ## [Unreleased]
 
+### Changed
+
+- **Your address book now runs on the database engine you choose.** The module
+  was tied to PostgreSQL; a single build now runs, unchanged, on PostgreSQL,
+  MySQL/MariaDB or SQLite, the engine being an administrator setting read at
+  start-up. A small instance can keep its whole address book — contacts, groups,
+  labels, reminders, the shared book and the CardDAV sync — in one SQLite file
+  with no database server to run, while a larger one keeps using PostgreSQL or
+  MySQL exactly as before. Nothing changes for an existing PostgreSQL
+  deployment: its schema, its data and its sync behaviour are preserved.
+- **Contact search behaves the same on every engine.** Full-text search moved
+  off PostgreSQL's text-search machinery onto a portable scheme: names,
+  organisations, e-mails, phone numbers, job titles, notes and addresses are
+  reduced to accent-folded French word stems when a contact is saved, so a
+  search for `chevaux` still finds `cheval`, `resume` still finds `résumé`, and
+  the field operators (`email:`, `tel:`, `org:`, `name:`, `job:`, `note:`,
+  `addr:`, `label:`) still work. One nicety is lost: approximate, typo-tolerant
+  matching — a search term must now appear as it is written (after accent and
+  plural folding).
+- **Local-first synchronisation is engine-independent.** The change journal that
+  drives the offline pull (contacts, labels, groups and reminders, plus their
+  deletions) no longer relies on PostgreSQL-only sequences and triggers, so it
+  keeps working identically on all three engines.
+
 ### Fixed
 
 - **A reminder is no longer delivered several times over.** When more than one

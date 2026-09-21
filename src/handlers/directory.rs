@@ -93,12 +93,7 @@ pub async fn add_to_contacts(
 
     // Link the personal contact to the account it was created from, so presence
     // and future lookups can find it again.
-    sqlx::query("UPDATE contacts.contacts SET kubuno_user_id = $2 WHERE id = $1")
-        .bind(contact.id)
-        .bind(kubuno_user_id)
-        .execute(&state.db)
-        .await
-        .map_err(ContactsError::Database)?;
+    crate::services::contact_service::set_kubuno_user_id(&state.db, user.id, contact.id, kubuno_user_id).await?;
 
     Ok(Json(json!({ "contact": contact })))
 }

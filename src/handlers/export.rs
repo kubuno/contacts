@@ -172,96 +172,194 @@ async fn load_contacts(state: &AppState, owner: Uuid) -> Result<Vec<crate::model
     // `shares`, and neither is read by this file. Every other query below names
     // its columns, which is what keeps the next migration from quietly widening
     // the export.
-    let rows = sqlx::query_as::<_, crate::models::contact::Contact>(
-        "SELECT * FROM contacts.contacts WHERE owner_id = $1 ORDER BY display_name",
-    )
-    .bind(owner)
-    .fetch_all(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, owner = %owner, "contacts: lecture des fiches pour export impossible");
-        crate::errors::ContactsError::Database(e)
-    })?;
-    Ok(rows)
+    state
+        .db
+        .fetch_all_as::<crate::models::contact::Contact>(
+            "SELECT * FROM contacts.contacts WHERE owner_id = $1 ORDER BY display_name",
+            kubuno_db::params![owner],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, owner = %owner, "contacts: lecture des fiches pour export impossible");
+            crate::errors::ContactsError::Database(e)
+        })
 }
 
-async fn load_groups(state: &AppState, owner: Uuid) -> Result<Value> {
-    json_rows(
-        state,
-        "SELECT COALESCE(json_agg(t ORDER BY t.name), '[]'::json) FROM ( \
-            SELECT g.id, g.name, g.color, g.is_system, g.created_at, g.updated_at, \
-                   COALESCE(( \
-                       SELECT json_agg(m.contact_id) FROM contacts.group_members m \
-                        WHERE m.group_id = g.id \
-                   ), '[]'::json) AS membres \
-              FROM contacts.groups g WHERE g.owner_id = $1 \
-         ) t",
-        owner,
-    )
-    .await
+// The JSON side-files (`groupes.json`, …) used to be assembled by PostgreSQL's
+// `json_agg`, which no other engine has. They are now read as typed rows and the
+// JSON is built in Rust — same shape, portable.
+
+#[derive(sqlx::FromRow)]
+struct GroupExportRow {
+    id:         Uuid,
+    name:       String,
+    color:      String,
+    is_system:  bool,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-async fn load_labels(state: &AppState, owner: Uuid) -> Result<Value> {
-    json_rows(
-        state,
-        "SELECT COALESCE(json_agg(t ORDER BY t.name), '[]'::json) FROM ( \
-            SELECT l.id, l.name, l.color, l.icon, l.is_system, l.position, l.created_at, \
-                   COALESCE(( \
-                       SELECT json_agg(cl.contact_id) FROM contacts.contact_labels cl \
-                        WHERE cl.label_id = l.id \
-                   ), '[]'::json) AS fiches \
-              FROM contacts.labels l WHERE l.owner_id = $1 \
-         ) t",
-        owner,
-    )
-    .await
+#[derive(sqlx::FromRow)]
+struct EdgeRow {
+    parent_id: Uuid,
+    child_id:  Uuid,
 }
 
-async fn load_reminders(state: &AppState, owner: Uuid) -> Result<Value> {
-    json_rows(
-        state,
-        "SELECT COALESCE(json_agg(t ORDER BY t.remind_at), '[]'::json) FROM ( \
-            SELECT id, contact_id, kind, message, remind_at, recurrence, is_done, \
-                   notified_at, created_at \
-              FROM contacts.reminders WHERE owner_id = $1 \
-         ) t",
-        owner,
-    )
-    .await
-}
-
-/// The shares, **without their tokens**.
-///
-/// `token` and `password_hash` are absent from the column list on purpose: a
-/// share token is a working credential for this data, and this file is going to
-/// somebody's laptop. What is left answers the question the reader actually has
-/// — what did I share, and is it still live.
-async fn load_shares(state: &AppState, owner: Uuid) -> Result<Value> {
-    json_rows(
-        state,
-        "SELECT COALESCE(json_agg(t ORDER BY t.created_at DESC), '[]'::json) FROM ( \
-            SELECT s.id, s.contact_id, s.group_id, s.permission, s.expires_at, \
-                   s.max_accesses, s.access_count, s.created_at, \
-                   (s.password_hash IS NOT NULL) AS protege_par_mot_de_passe \
-              FROM contacts.shares s WHERE s.owner_id = $1 \
-         ) t",
-        owner,
-    )
-    .await
-}
-
-// `&'static str` rather than `&str`: the driver accepts a literal as a safe SQL
-// string, so the signature itself now forbids handing this helper anything
-// built at run time. No audit marker needed — the compiler enforces it.
-async fn json_rows(state: &AppState, sql: &'static str, owner: Uuid) -> Result<Value> {
-    sqlx::query_scalar::<_, Value>(sql)
-        .bind(owner)
-        .fetch_one(&state.db)
+/// The `parent_id → [child_id]` map for a join table, read in one query.
+async fn edge_map(state: &AppState, owner: Uuid, sql: &'static str) -> Result<std::collections::HashMap<Uuid, Vec<Uuid>>> {
+    let rows = state
+        .db
+        .fetch_all_as::<EdgeRow>(sql, kubuno_db::params![owner])
         .await
         .map_err(|e| {
             tracing::error!(error = %e, owner = %owner, "contacts: extraction pour export impossible");
             crate::errors::ContactsError::Database(e)
+        })?;
+    let mut map: std::collections::HashMap<Uuid, Vec<Uuid>> = std::collections::HashMap::new();
+    for r in rows {
+        map.entry(r.parent_id).or_default().push(r.child_id);
+    }
+    Ok(map)
+}
+
+async fn load_groups(state: &AppState, owner: Uuid) -> Result<Value> {
+    let groups = state
+        .db
+        .fetch_all_as::<GroupExportRow>(
+            "SELECT id, name, color, is_system, created_at, updated_at \
+             FROM contacts.groups WHERE owner_id = $1 ORDER BY name",
+            kubuno_db::params![owner],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, owner = %owner, "contacts: extraction des groupes impossible");
+            crate::errors::ContactsError::Database(e)
+        })?;
+    let members = edge_map(
+        state,
+        owner,
+        "SELECT gm.group_id AS parent_id, gm.contact_id AS child_id \
+         FROM contacts.group_members gm JOIN contacts.groups g ON g.id = gm.group_id \
+         WHERE g.owner_id = $1",
+    )
+    .await?;
+    let out: Vec<Value> = groups
+        .into_iter()
+        .map(|g| {
+            let membres = members.get(&g.id).cloned().unwrap_or_default();
+            json!({
+                "id": g.id, "name": g.name, "color": g.color, "is_system": g.is_system,
+                "created_at": g.created_at, "updated_at": g.updated_at, "membres": membres,
+            })
         })
+        .collect();
+    Ok(Value::Array(out))
+}
+
+#[derive(sqlx::FromRow)]
+struct LabelExportRow {
+    id:         Uuid,
+    name:       String,
+    color:      String,
+    icon:       Option<String>,
+    is_system:  bool,
+    position:   i32,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+async fn load_labels(state: &AppState, owner: Uuid) -> Result<Value> {
+    let labels = state
+        .db
+        .fetch_all_as::<LabelExportRow>(
+            "SELECT id, name, color, icon, is_system, position, created_at \
+             FROM contacts.labels WHERE owner_id = $1 ORDER BY name",
+            kubuno_db::params![owner],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, owner = %owner, "contacts: extraction des étiquettes impossible");
+            crate::errors::ContactsError::Database(e)
+        })?;
+    let members = edge_map(
+        state,
+        owner,
+        "SELECT cl.label_id AS parent_id, cl.contact_id AS child_id \
+         FROM contacts.contact_labels cl JOIN contacts.labels l ON l.id = cl.label_id \
+         WHERE l.owner_id = $1",
+    )
+    .await?;
+    let out: Vec<Value> = labels
+        .into_iter()
+        .map(|l| {
+            let fiches = members.get(&l.id).cloned().unwrap_or_default();
+            json!({
+                "id": l.id, "name": l.name, "color": l.color, "icon": l.icon,
+                "is_system": l.is_system, "position": l.position,
+                "created_at": l.created_at, "fiches": fiches,
+            })
+        })
+        .collect();
+    Ok(Value::Array(out))
+}
+
+async fn load_reminders(state: &AppState, owner: Uuid) -> Result<Value> {
+    let rows = state
+        .db
+        .fetch_all_as::<crate::models::reminder::Reminder>(
+            "SELECT id, owner_id, contact_id, kind, message, remind_at, recurrence, is_done, notified_at, created_at \
+             FROM contacts.reminders WHERE owner_id = $1 ORDER BY remind_at",
+            kubuno_db::params![owner],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, owner = %owner, "contacts: extraction des rappels impossible");
+            crate::errors::ContactsError::Database(e)
+        })?;
+    Ok(serde_json::to_value(rows).unwrap_or_else(|_| Value::Array(vec![])))
+}
+
+/// The shares, **without their tokens**. `token` and `password_hash` are absent
+/// from the column list on purpose: a share token is a working credential for
+/// this data, and this file is going to somebody's laptop.
+async fn load_shares(state: &AppState, owner: Uuid) -> Result<Value> {
+    // `password_hash IS NOT NULL` gives a boolean; both cast to a plain bool the
+    // driver decodes on every engine.
+    let flag = state.db.backend().cast("CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END", kubuno_db::dialect::SqlType::BigInt);
+    let sql = format!(
+        "SELECT id, contact_id, group_id, permission, expires_at, max_accesses, access_count, created_at, \
+                ({flag}) AS protege_flag FROM contacts.shares WHERE owner_id = $1 ORDER BY created_at DESC"
+    );
+    let rows = state
+        .db
+        .fetch_all_as::<ShareFlagRow>(&sql, kubuno_db::params![owner])
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, owner = %owner, "contacts: extraction des partages impossible");
+            crate::errors::ContactsError::Database(e)
+        })?;
+    let out: Vec<Value> = rows
+        .into_iter()
+        .map(|s| json!({
+            "id": s.id, "contact_id": s.contact_id, "group_id": s.group_id,
+            "permission": s.permission, "expires_at": s.expires_at,
+            "max_accesses": s.max_accesses, "access_count": s.access_count,
+            "created_at": s.created_at, "protege_par_mot_de_passe": s.protege_flag != 0,
+        }))
+        .collect();
+    Ok(Value::Array(out))
+}
+
+#[derive(sqlx::FromRow)]
+struct ShareFlagRow {
+    id:            Uuid,
+    contact_id:    Option<Uuid>,
+    group_id:      Option<Uuid>,
+    permission:    String,
+    expires_at:    Option<chrono::DateTime<chrono::Utc>>,
+    max_accesses:  Option<i32>,
+    access_count:  i32,
+    created_at:    chrono::DateTime<chrono::Utc>,
+    protege_flag:  i64,
 }
 
 /// The avatar files, as `(contact_id, bytes)`.

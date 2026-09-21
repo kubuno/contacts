@@ -232,11 +232,7 @@ pub async fn upload_avatar(
 
     let avatar_path = saved_path.ok_or_else(|| ContactsError::Validation("Champ 'avatar' manquant".into()))?;
 
-    sqlx::query(
-        "UPDATE contacts.contacts SET avatar_path = $1 WHERE id = $2 AND owner_id = $3",
-    )
-    .bind(&avatar_path).bind(id).bind(user.id)
-    .execute(&state.db).await.map_err(ContactsError::Database)?;
+    contact_service::set_avatar_path(&state.db, user.id, id, &avatar_path).await?;
 
     Ok(Json(json!({ "avatar_path": avatar_path })))
 }
@@ -245,12 +241,7 @@ pub async fn get_avatar(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response> {
-    let row = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT avatar_path FROM contacts.contacts WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db).await.map_err(ContactsError::Database)?
-    .flatten();
+    let row = contact_service::get_avatar_path(&state.db, id).await?;
 
     let path = row.ok_or_else(|| ContactsError::NotFound("Avatar introuvable".into()))?;
 

@@ -1,4 +1,6 @@
-use sqlx::PgPool;
+use chrono::{DateTime, Utc};
+use kubuno_db::dialect::Assign;
+use kubuno_db::{params, DbPool};
 use uuid::Uuid;
 
 use crate::{
@@ -9,101 +11,115 @@ use crate::{
 
 /// Generates a fresh CardDAV token for the owner (replacing any existing one)
 /// and returns the raw token (shown once).
-pub async fn regenerate_token(db: &PgPool, owner_id: Uuid) -> Result<String> {
+pub async fn regenerate_token(db: &DbPool, owner_id: Uuid) -> Result<String> {
     let raw = crate::services::share_service::gen_token();
     let hash = sha256_hex(&raw);
-    sqlx::query(
-        "INSERT INTO contacts.carddav_tokens (owner_id, token_hash, created_at)
-         VALUES ($1, $2, NOW())
-         ON CONFLICT (owner_id) DO UPDATE SET token_hash = EXCLUDED.token_hash, created_at = NOW()",
-    )
-    .bind(owner_id)
-    .bind(&hash)
-    .execute(db)
-    .await
-    .map_err(ContactsError::Database)?;
+    let backend = db.backend();
+    let clause = backend.upsert(
+        "contacts.carddav_tokens",
+        &["owner_id"],
+        &[Assign::Incoming("token_hash"), Assign::Incoming("created_at")],
+    );
+    let sql = format!(
+        "INSERT INTO contacts.carddav_tokens (owner_id, token_hash, created_at) VALUES ($1, $2, $3){clause}"
+    );
+    db.execute(&sql, params![owner_id, hash, Utc::now()])
+        .await
+        .map_err(ContactsError::Database)?;
     Ok(raw)
 }
 
-pub async fn has_token(db: &PgPool, owner_id: Uuid) -> Result<bool> {
-    sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM contacts.carddav_tokens WHERE owner_id = $1)",
-    )
-    .bind(owner_id)
-    .fetch_one(db)
-    .await
-    .map_err(ContactsError::Database)
+pub async fn has_token(db: &DbPool, owner_id: Uuid) -> Result<bool> {
+    let n = db
+        .fetch_scalar::<i64>(
+            "SELECT COUNT(*) FROM contacts.carddav_tokens WHERE owner_id = $1",
+            params![owner_id],
+        )
+        .await
+        .map_err(ContactsError::Database)?;
+    Ok(n > 0)
 }
 
-pub async fn revoke_token(db: &PgPool, owner_id: Uuid) -> Result<()> {
-    sqlx::query("DELETE FROM contacts.carddav_tokens WHERE owner_id = $1")
-        .bind(owner_id)
-        .execute(db)
+pub async fn revoke_token(db: &DbPool, owner_id: Uuid) -> Result<()> {
+    db.execute("DELETE FROM contacts.carddav_tokens WHERE owner_id = $1", params![owner_id])
         .await
         .map_err(ContactsError::Database)?;
     Ok(())
 }
 
 /// Resolves a raw token to its owner (and stamps last_used_at).
-pub async fn owner_for_token(db: &PgPool, raw_token: &str) -> Result<Option<Uuid>> {
+pub async fn owner_for_token(db: &DbPool, raw_token: &str) -> Result<Option<Uuid>> {
     let hash = sha256_hex(raw_token);
-    let owner = sqlx::query_scalar::<_, Uuid>(
-        "SELECT owner_id FROM contacts.carddav_tokens WHERE token_hash = $1",
-    )
-    .bind(&hash)
-    .fetch_optional(db)
-    .await
-    .map_err(ContactsError::Database)?;
+    let owner = db
+        .fetch_optional_scalar::<Uuid>(
+            "SELECT owner_id FROM contacts.carddav_tokens WHERE token_hash = $1",
+            params![hash],
+        )
+        .await
+        .map_err(ContactsError::Database)?;
     if let Some(o) = owner {
-        let _ = sqlx::query("UPDATE contacts.carddav_tokens SET last_used_at = NOW() WHERE owner_id = $1")
-            .bind(o)
-            .execute(db)
+        let _ = db
+            .execute(
+                "UPDATE contacts.carddav_tokens SET last_used_at = $1 WHERE owner_id = $2",
+                params![Utc::now(), o],
+            )
             .await;
     }
     Ok(owner)
 }
 
+#[derive(sqlx::FromRow)]
+struct CtagRow {
+    cnt:         i64,
+    max_updated: Option<DateTime<Utc>>,
+}
+
 /// Collection sync tag: changes whenever any contact changes.
-pub async fn ctag(db: &PgPool, owner_id: Uuid) -> Result<String> {
-    let row = sqlx::query_as::<_, (i64, Option<chrono::DateTime<chrono::Utc>>)>(
-        "SELECT COUNT(*), MAX(updated_at) FROM contacts.contacts
+pub async fn ctag(db: &DbPool, owner_id: Uuid) -> Result<String> {
+    let sql = format!(
+        "SELECT {} AS cnt, MAX(updated_at) AS max_updated FROM contacts.contacts \
          WHERE owner_id = $1 AND is_trashed = FALSE",
-    )
-    .bind(owner_id)
-    .fetch_one(db)
-    .await
-    .map_err(ContactsError::Database)?;
-    let stamp = row.1.map(|d| d.timestamp_millis()).unwrap_or(0);
-    Ok(format!("{}-{}", row.0, stamp))
+        db.backend().count_bigint("*"),
+    );
+    let row = db
+        .fetch_one_as::<CtagRow>(&sql, params![owner_id])
+        .await
+        .map_err(ContactsError::Database)?;
+    let stamp = row.max_updated.map(|d| d.timestamp_millis()).unwrap_or(0);
+    Ok(format!("{}-{}", row.cnt, stamp))
+}
+
+#[derive(sqlx::FromRow)]
+struct RefRow {
+    vcard_uid: String,
+    etag:      String,
 }
 
 /// (vcard_uid, etag) of all non-trashed contacts.
-pub async fn list_refs(db: &PgPool, owner_id: Uuid) -> Result<Vec<(String, String)>> {
-    sqlx::query_as::<_, (String, String)>(
-        "SELECT vcard_uid, etag FROM contacts.contacts
-         WHERE owner_id = $1 AND is_trashed = FALSE
-         ORDER BY display_name ASC",
-    )
-    .bind(owner_id)
-    .fetch_all(db)
-    .await
-    .map_err(ContactsError::Database)
+pub async fn list_refs(db: &DbPool, owner_id: Uuid) -> Result<Vec<(String, String)>> {
+    let rows = db
+        .fetch_all_as::<RefRow>(
+            "SELECT vcard_uid, etag FROM contacts.contacts \
+             WHERE owner_id = $1 AND is_trashed = FALSE \
+             ORDER BY display_name ASC",
+            params![owner_id],
+        )
+        .await
+        .map_err(ContactsError::Database)?;
+    Ok(rows.into_iter().map(|r| (r.vcard_uid, r.etag)).collect())
 }
 
-pub async fn get_by_uid(db: &PgPool, owner_id: Uuid, uid: &str) -> Result<Option<Contact>> {
-    sqlx::query_as::<_, Contact>(
-        "SELECT * FROM contacts.contacts
-         WHERE owner_id = $1 AND vcard_uid = $2 AND is_trashed = FALSE",
+pub async fn get_by_uid(db: &DbPool, owner_id: Uuid, uid: &str) -> Result<Option<Contact>> {
+    db.fetch_optional_as::<Contact>(
+        "SELECT * FROM contacts.contacts WHERE owner_id = $1 AND vcard_uid = $2 AND is_trashed = FALSE",
+        params![owner_id, uid],
     )
-    .bind(owner_id)
-    .bind(uid)
-    .fetch_optional(db)
     .await
     .map_err(ContactsError::Database)
 }
 
 /// Creates or updates a contact from a PUT'd vCard, keyed by `uid`.
-pub async fn put_vcard(db: &PgPool, owner_id: Uuid, uid: &str, vcf: &str) -> Result<String> {
+pub async fn put_vcard(db: &DbPool, owner_id: Uuid, uid: &str, vcf: &str) -> Result<String> {
     let dtos = vcard_service::parse_vcf(vcf);
     let dto = dtos
         .into_iter()
@@ -112,7 +128,6 @@ pub async fn put_vcard(db: &PgPool, owner_id: Uuid, uid: &str, vcf: &str) -> Res
 
     let existing = get_by_uid(db, owner_id, uid).await?;
     let etag = if let Some(c) = existing {
-        // Update existing contact via the standard service, preserving uid.
         let update = crate::models::contact::UpdateContactDto {
             given_name: dto.given_name, middle_name: dto.middle_name, family_name: dto.family_name,
             name_prefix: dto.name_prefix, name_suffix: dto.name_suffix, nickname: dto.nickname,
@@ -128,31 +143,30 @@ pub async fn put_vcard(db: &PgPool, owner_id: Uuid, uid: &str, vcf: &str) -> Res
     } else {
         let created = contact_service::create_contact(db, owner_id, &dto).await?;
         // Pin the vcard_uid to the client-provided value so future syncs match.
-        sqlx::query("UPDATE contacts.contacts SET vcard_uid = $1, import_source = 'carddav' WHERE id = $2 AND owner_id = $3")
-            .bind(uid)
-            .bind(created.id)
-            .bind(owner_id)
-            .execute(db)
-            .await
-            .map_err(ContactsError::Database)?;
-        sqlx::query_scalar::<_, String>("SELECT etag FROM contacts.contacts WHERE id = $1")
-            .bind(created.id)
-            .fetch_one(db)
-            .await
-            .map_err(ContactsError::Database)?
+        db.execute(
+            "UPDATE contacts.contacts SET vcard_uid = $1, import_source = 'carddav', updated_at = $2 \
+             WHERE id = $3 AND owner_id = $4",
+            params![uid, Utc::now(), created.id, owner_id],
+        )
+        .await
+        .map_err(ContactsError::Database)?;
+        db.fetch_optional_scalar::<String>(
+            "SELECT etag FROM contacts.contacts WHERE id = $1",
+            params![created.id],
+        )
+        .await
+        .map_err(ContactsError::Database)?
+        .unwrap_or_default()
     };
     Ok(etag)
 }
 
-pub async fn delete_by_uid(db: &PgPool, owner_id: Uuid, uid: &str) -> Result<bool> {
-    let rows = sqlx::query(
-        "DELETE FROM contacts.contacts WHERE owner_id = $1 AND vcard_uid = $2",
-    )
-    .bind(owner_id)
-    .bind(uid)
-    .execute(db)
-    .await
-    .map_err(ContactsError::Database)?
-    .rows_affected();
-    Ok(rows > 0)
+pub async fn delete_by_uid(db: &DbPool, owner_id: Uuid, uid: &str) -> Result<bool> {
+    // Resolve the id first so the delete can record a tombstone (the delta feed
+    // must learn the contact is gone). A CardDAV delete is a permanent delete.
+    let Some(c) = get_by_uid(db, owner_id, uid).await? else {
+        return Ok(false);
+    };
+    contact_service::delete_contact_permanently(db, owner_id, c.id).await?;
+    Ok(true)
 }

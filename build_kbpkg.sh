@@ -110,7 +110,7 @@ mkdir -p "$ROOT"
 install -m 755 "$BIN"       "${ROOT}/${EXE}"
 install -m 644 module.toml  "${ROOT}/module.toml"
 [[ "$HAS_FRONTEND" -eq 1 ]] && { mkdir -p "${ROOT}/frontend"; cp -r frontend/dist/. "${ROOT}/frontend/"; }
-[[ -d migrations ]] && { mkdir -p "${ROOT}/migrations"; cp migrations/*.sql "${ROOT}/migrations/" 2>/dev/null || true; }
+[[ -d migrations ]] && { mkdir -p "${ROOT}/migrations"; cp -r migrations/. "${ROOT}/migrations/" 2>/dev/null || true; }
 [[ -f config.toml.example ]] && install -m 644 config.toml.example "${ROOT}/config.toml.example"
 [[ -f LICENSE ]]      && install -m 644 LICENSE      "${ROOT}/LICENSE"
 [[ -f CHANGELOG.md ]] && install -m 644 CHANGELOG.md "${ROOT}/CHANGELOG.md"

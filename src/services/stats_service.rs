@@ -1,5 +1,5 @@
+use kubuno_db::{params, DbPool};
 use serde::Serialize;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::errors::{ContactsError, Result};
@@ -20,34 +20,64 @@ pub struct Stats {
     pub completeness_pct: i64,
 }
 
-pub async fn compute(db: &PgPool, owner_id: Uuid) -> Result<Stats> {
-    // A single scan computes every counter via conditional aggregates.
-    let row = sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64, i64, i64)>(
-        "SELECT
-            COUNT(*) FILTER (WHERE is_trashed = FALSE AND is_archived = FALSE)              AS total,
-            COUNT(*) FILTER (WHERE is_trashed = FALSE AND is_starred = TRUE)                AS starred,
-            COUNT(*) FILTER (WHERE is_archived = TRUE AND is_trashed = FALSE)               AS archived,
-            COUNT(*) FILTER (WHERE is_trashed = TRUE)                                       AS trashed,
-            COUNT(*) FILTER (WHERE is_blocked = TRUE AND is_trashed = FALSE)                AS blocked,
-            COUNT(*) FILTER (WHERE is_trashed = FALSE AND jsonb_array_length(emails) > 0)   AS with_email,
-            COUNT(*) FILTER (WHERE is_trashed = FALSE AND jsonb_array_length(phones) > 0)   AS with_phone,
-            COUNT(*) FILTER (WHERE is_trashed = FALSE AND avatar_path IS NOT NULL)          AS with_avatar
-         FROM contacts.contacts
-         WHERE owner_id = $1",
-    )
-    .bind(owner_id)
-    .fetch_one(db)
-    .await
-    .map_err(ContactsError::Database)?;
+#[derive(sqlx::FromRow)]
+struct StatsRow {
+    total:       i64,
+    starred:     i64,
+    archived:    i64,
+    trashed:     i64,
+    blocked:     i64,
+    with_email:  i64,
+    with_phone:  i64,
+    with_avatar: i64,
+}
 
-    let groups = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM contacts.groups WHERE owner_id = $1")
-        .bind(owner_id).fetch_one(db).await.map_err(ContactsError::Database)?;
-    let labels = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM contacts.labels WHERE owner_id = $1")
-        .bind(owner_id).fetch_one(db).await.map_err(ContactsError::Database)?;
+pub async fn compute(db: &DbPool, owner_id: Uuid) -> Result<Stats> {
+    let b = db.backend();
+    // `COUNT(*) FILTER (WHERE …)` is PostgreSQL-only; the portable form is a
+    // `SUM(CASE WHEN … THEN 1 ELSE 0 END)` cast to BIGINT (via `sum_bigint`).
+    let sql = format!(
+        "SELECT \
+            {total}       AS total, \
+            {starred}     AS starred, \
+            {archived}    AS archived, \
+            {trashed}     AS trashed, \
+            {blocked}     AS blocked, \
+            {with_email}  AS with_email, \
+            {with_phone}  AS with_phone, \
+            {with_avatar} AS with_avatar \
+         FROM contacts.contacts WHERE owner_id = $1",
+        total       = b.sum_bigint("CASE WHEN is_trashed = FALSE AND is_archived = FALSE THEN 1 ELSE 0 END"),
+        starred     = b.sum_bigint("CASE WHEN is_trashed = FALSE AND is_starred = TRUE THEN 1 ELSE 0 END"),
+        archived    = b.sum_bigint("CASE WHEN is_archived = TRUE AND is_trashed = FALSE THEN 1 ELSE 0 END"),
+        trashed     = b.sum_bigint("CASE WHEN is_trashed = TRUE THEN 1 ELSE 0 END"),
+        blocked     = b.sum_bigint("CASE WHEN is_blocked = TRUE AND is_trashed = FALSE THEN 1 ELSE 0 END"),
+        with_email  = b.sum_bigint("CASE WHEN is_trashed = FALSE AND email_norm <> '' THEN 1 ELSE 0 END"),
+        with_phone  = b.sum_bigint("CASE WHEN is_trashed = FALSE AND phone_norm <> '' THEN 1 ELSE 0 END"),
+        with_avatar = b.sum_bigint("CASE WHEN is_trashed = FALSE AND avatar_path IS NOT NULL THEN 1 ELSE 0 END"),
+    );
+    let row = db
+        .fetch_one_as::<StatsRow>(&sql, params![owner_id])
+        .await
+        .map_err(ContactsError::Database)?;
 
-    let (total, starred, archived, trashed, blocked, with_email, with_phone, with_avatar) = row;
+    let groups = db
+        .fetch_scalar::<i64>(
+            &format!("SELECT {} FROM contacts.groups WHERE owner_id = $1", b.count_bigint("*")),
+            params![owner_id],
+        )
+        .await
+        .map_err(ContactsError::Database)?;
+    let labels = db
+        .fetch_scalar::<i64>(
+            &format!("SELECT {} FROM contacts.labels WHERE owner_id = $1", b.count_bigint("*")),
+            params![owner_id],
+        )
+        .await
+        .map_err(ContactsError::Database)?;
+
+    let StatsRow { total, starred, archived, trashed, blocked, with_email, with_phone, with_avatar } = row;
     let incomplete = (total - with_email).max(0) + (total - with_phone).max(0);
-    // Completeness: average of the email/phone/avatar coverage ratios.
     let completeness_pct = if total > 0 {
         ((with_email + with_phone + with_avatar) * 100 / (total * 3)).clamp(0, 100)
     } else {

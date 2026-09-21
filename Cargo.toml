@@ -26,6 +26,7 @@ validator          = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 kubuno-seccomp     = { workspace = true }
+kubuno-db          = { workspace = true }
 thiserror          = { workspace = true }
 anyhow             = { workspace = true }
 uuid               = { workspace = true }
@@ -45,6 +46,9 @@ zip                = { workspace = true }
 
 csv   = "1.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 # ─── Workspace mono-crate (deps tierces recopiées du monorepo kubuno/core ;
 #     crates partagées consommées via dépendances git taguées) ───
@@ -69,7 +73,10 @@ tower-http  = { version = "0.6",  features = ["cors", "compression-gzip", "trace
 async-trait = "0.1"
 
 # Database
-sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "migrate", "tls-rustls", "bigdecimal"] }
+# All three drivers are compiled in; the engine is a run-time choice made by
+# kubuno-db. The FromRow derive on the module's structs resolves against the
+# three row types, so the three drivers must be present here too.
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "uuid", "chrono", "json", "migrate", "tls-rustls", "bigdecimal", "derive", "macros", "postgres", "mysql", "sqlite"] }
 
 # Sérialisation
 serde      = { version = "1", features = ["derive"] }
@@ -100,6 +107,10 @@ tracing-appender   = "0.2"
 tokio-util         = { version = "0.7", features = ["io"] }
 kubuno-storage     = { git = "https://github.com/kubuno/core", tag = "storage-v0.1.1", package = "kubuno-storage" }
 kubuno-seccomp     = { git = "https://github.com/kubuno/core", tag = "seccomp-v0.1.1", package = "kubuno-seccomp" }
+# PROTOTYPE: pointed at the local crate so this runtime-dispatch rewrite is what
+# builds. The released form is the tagged one below; retag db-v0.6.0 before use.
+#   kubuno-db = { git = "https://github.com/kubuno/core", tag = "db-v0.6.0", package = "kubuno-db" }
+kubuno-db          = { path = "../core/crates/kubuno-db" }
 
 # Erreurs
 thiserror = "1"

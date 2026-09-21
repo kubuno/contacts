@@ -34,6 +34,9 @@ number at release time, and CI publishes that section as the GitHub Release note
   keeps working identically on all three engines.
 
 ### Fixed
+- On PostgreSQL, label creation and label assignment now decode integer
+  results at a portable width (the previous code read an `int4` result as
+  `i64`, which PostgreSQL rejects); no behaviour change on SQLite or MySQL.
 
 - **A reminder is no longer delivered several times over.** When more than one
   copy of the module was running — during a restart, or on an instance that

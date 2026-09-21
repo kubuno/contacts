@@ -1,4 +1,4 @@
-use kubuno_db::{new_id, params, DbPool};
+use kubuno_db::{dialect::SqlType, new_id, params, DbPool};
 use uuid::Uuid;
 
 use crate::{
@@ -47,9 +47,16 @@ pub async fn create_label(db: &DbPool, owner_id: Uuid, dto: &CreateLabelDto) -> 
 
     // Next position, computed in Rust (a `MAX(position)+1` subquery over the
     // same table in an INSERT is rejected by MySQL).
+    // The next position. `MAX(position) + 1` is cast to one portable width:
+    // PostgreSQL keeps int4 (an i64 decode would fail), MySQL widens MAX and the
+    // arithmetic to BIGINT, and SQLite is dynamic — the cast pins a single
+    // decodable type across all three. COALESCE covers the empty table (0).
     let position: i32 = db
         .fetch_scalar::<i64>(
-            "SELECT COALESCE(MAX(position) + 1, 0) FROM contacts.labels WHERE owner_id = $1",
+            &format!(
+                "SELECT {} FROM contacts.labels WHERE owner_id = $1",
+                db.backend().cast("COALESCE(MAX(position) + 1, 0)", SqlType::BigInt)
+            ),
             params![owner_id],
         )
         .await
@@ -152,7 +159,10 @@ pub async fn add_label_to_contacts(
         // Only assign the label to a contact the owner really holds.
         let owns_contact = tx
             .fetch_optional_scalar::<i64>(
-                "SELECT 1 FROM contacts.contacts WHERE id = $1 AND owner_id = $2",
+                &format!(
+                    "SELECT {} FROM contacts.contacts WHERE id = $1 AND owner_id = $2",
+                    backend.cast("1", SqlType::BigInt)
+                ),
                 params![cid, owner_id],
             )
             .await

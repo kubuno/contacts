@@ -23,30 +23,38 @@ Rich contact records, groups and labels, an instance-wide directory, CardDAV syn
 
 ---
 
-## ✨ Features
+## Screenshots
 
-- 👤 **Full-featured address book** — rich contact records (names, pronouns, organization and job title, emails, phones, postal addresses, URLs, important dates, related people, instant-messaging handles, custom fields, notes and avatars), with starring, archiving, blocking, and a trash you can restore from.
-- 📇 **A contact on its own page** — each contact opens at its own address (`/contacts/person/<id>`) with the whole area to itself and a real URL to share or bookmark; the editor is a single Material-style form with progressive disclosure, two-column layout on wide screens, and a country dial-code selector for phone numbers.
-- 🗂️ **Groups & labels** — organize contacts into colored groups and freeform labels, both managed straight from the sidebar. Every view (all, starred, a group, a label, a smart view…) has its own shareable URL, so deep links and the browser Back button just work.
-- 🧠 **Smart views** — birthdays, frequently contacted, follow-up suggestions, and a duplicate finder with one-click merge or ignore.
-- 🔔 **Reminders** — birthday and custom follow-up reminders with recurrence, surfaced as a due-count badge in the sidebar.
-- 🔄 **Import & export** — vCard (`.vcf`) and CSV import; vCard and CSV export of your whole address book.
-- 📱 **CardDAV** — sync your contacts with phones and desktop clients through the built-in CardDAV endpoint, with per-user tokens (toggleable instance-wide).
-- 🏢 **Instance directory & organizational unit** — browse the other people on your Kubuno instance, and a dedicated "My organizational unit" group reads the core's governed directory (the instance's sharing policy still decides what is visible). Add anyone to your own address book in one click; no copy of the account list is kept.
-- 🤝 **"Other contacts"** — people you have actually dealt with through another module (a mail correspondent, someone met in a chat) but never saved, fed entirely through the **core's event bus** — so mail and chat need to know nothing about the address book. Keep them or dismiss them.
-- 🔗 **Sharing** — share a contact with other users of the instance, or through a public link (optionally password-protected and time-limited, subject to admin policy).
-- 🧩 **Cross-module integration** — other modules can open a globally-mounted **contact picker** published on the core's service registry, a contact copied with "Copy for Kubuno" pastes as a **rich contact card** in consumer modules such as Chat or Notes, and Contacts feeds a **person card** so a guest shown elsewhere carries their job title, organization, phone, address and photo. Everything degrades gracefully when Contacts is not installed.
-- 💬 **@mention provider** — typing `@` in any mention-enabled text field across the platform suggests your contacts with avatar and email and inserts them as a removable chip, published on the core's extension registry.
-- ⚡ **Delta sync** — cursor-based `/delta` endpoints (contacts, labels, groups, reminders) with monotonic change sequences and tombstones, powering incremental pulls by local-first clients; client-minted IDs are honored on create for offline replay.
+![The address book, grouped by name](.github/screenshots/contacts-list.png)
 
-## 🏗️ Architecture
+<sub>The address book, grouped by name</sub>
+
+## Features
+
+- **Full-featured address book** — rich contact records (names, pronouns, organization and job title, emails, phones, postal addresses, URLs, important dates, related people, instant-messaging handles, custom fields, notes and avatars), with starring, archiving, blocking, and a trash you can restore from.
+- **A contact on its own page** — each contact opens at its own address (`/contacts/person/<id>`) with the whole area to itself and a real URL to share or bookmark; the editor is a single Material-style form with progressive disclosure, two-column layout on wide screens, and a country dial-code selector for phone numbers.
+- **Groups & labels** — organize contacts into colored groups and freeform labels, both managed straight from the sidebar. Every view (all, starred, a group, a label, a smart view…) has its own shareable URL, so deep links and the browser Back button just work.
+- **Smart views** — birthdays, frequently contacted, follow-up suggestions, and a duplicate finder with one-click merge or ignore.
+- **Search with field operators** — names, organisations, e-mails, phone numbers, job titles, notes and addresses are indexed as accent-folded word stems, so `chevaux` finds `cheval` and `resume` finds `résumé`; operators such as `email:`, `tel:`, `org:`, `name:`, `job:`, `note:`, `addr:` and `label:` narrow a query to one field. Results are the same on every database engine.
+- **Reminders** — birthday and custom follow-up reminders with recurrence, surfaced as a due-count badge in the sidebar.
+- **Import & export** — vCard (`.vcf`) and CSV import; vCard and CSV export of your whole address book.
+- **CardDAV** — sync your contacts with phones and desktop clients through the built-in CardDAV endpoint, with per-user tokens (toggleable instance-wide).
+- **Instance directory & organizational unit** — browse the other people on your Kubuno instance, and a dedicated "My organizational unit" group reads the core's governed directory (the instance's sharing policy still decides what is visible). Add anyone to your own address book in one click; no copy of the account list is kept.
+- **"Other contacts"** — people you have actually dealt with through another module (a mail correspondent, someone met in a chat) but never saved, fed entirely through the **core's event bus** — so mail and chat need to know nothing about the address book. Keep them or dismiss them.
+- **Sharing** — share a contact with other users of the instance, or through a public link (optionally password-protected and time-limited, subject to admin policy).
+- **Cross-module integration** — other modules can open a globally-mounted **contact picker** published on the core's service registry, a contact copied with "Copy for Kubuno" pastes as a **rich contact card** in consumer modules such as Chat or Notes, and Contacts feeds a **person card** so a guest shown elsewhere carries their job title, organization, phone, address and photo. Everything degrades gracefully when Contacts is not installed.
+- **@mention provider** — typing `@` in any mention-enabled text field across the platform suggests your contacts with avatar and email and inserts them as a removable chip, published on the core's extension registry.
+- **Delta sync** — cursor-based `/delta` endpoints (contacts, labels, groups, reminders) with monotonic change sequences and tombstones, powering incremental pulls by local-first clients; client-minted IDs are honored on create for offline replay.
+- **Your choice of database** — runs on PostgreSQL, MySQL/MariaDB or SQLite, picked by the administrator in configuration and read at start-up; SQLite needs no database server at all, which makes a single-machine or evaluation install trivial.
+
+## Architecture
 
 Kubuno is **modular**: a **core** (the platform's "operating system") plus independent **modules**. Each module — Contacts included — is a **separate process** that connects to the core at startup on its own dedicated port (**3110** for Contacts); the core proxies its routes (`/api/v1/contacts/*`), distributes events and serves its runtime-loaded React frontend bundle.
 
-- **Backend** — `src/`: Axum + SQLx (PostgreSQL, schema `contacts`); migrations in `migrations/`.
+- **Backend** — `src/`: Axum + SQLx through the shared `kubuno-db` layer — PostgreSQL (schema `contacts`), MySQL/MariaDB or SQLite; migrations in `migrations/`.
 - **Frontend** — `frontend/`: a React bundle built to `entry.js`, consuming `@kubuno/sdk`, `@ui` and `@kubuno/drive` from the host at runtime via its import map.
 
-## 📦 Install
+## Install
 
 The easiest way to self-host a full Kubuno instance (core + every module, Contacts included) is the **all-in-one Docker image** (`ghcr.io/kubuno/kubuno`). See **[kubuno/docker](https://github.com/kubuno/docker)** for `docker compose` instructions.
 
@@ -59,9 +67,9 @@ sudo systemctl restart kubuno         # the core loads the module on (re)start
 
 The `.kbpkg` is a ZIP archive rooted at the module folder; the core unpacks it in pure Rust, so installation is identical on every platform. It is the **only** distribution format for a module — a module is not a system service, so there are no `.deb`/`.rpm`/`.exe`/`.pkg` packages.
 
-## 🛠️ Build & development
+## Build & development
 
-**Requirements:** Rust ≥ 1.82, Node.js ≥ 24, PostgreSQL 16.
+**Requirements:** Rust ≥ 1.82, Node.js ≥ 24, and PostgreSQL 16, MySQL/MariaDB or SQLite (no server needed).
 
 ```bash
 cargo build --release                     # → target/release/kubuno-contacts (shared crates from git tags)
@@ -74,14 +82,18 @@ bash build_kbpkg.sh --install             # build, install into the local module
 > - **Rust** — shared crates via tagged git dependencies on `kubuno/core`.
 > - **Frontend** — `@kubuno/sdk`, `@kubuno/ui` and `@kubuno/drive` from the `@kubuno` npm scope, resolved at runtime to the host's singletons through its import map.
 
-## 📦 Tech stack
+## Configuration
 
-Rust 2021 · Axum 0.7 · Tokio · SQLx 0.8 (PostgreSQL 16, schema `contacts`) — React 19 · TypeScript · Vite · Tailwind CSS v4 · Zustand · React Query.
+Copy `config.toml.example` → `config.toml`, or use environment variables (`KUBUNO_CORE_URL`, `KUBUNO_INTERNAL_SECRET`, `KUBUNO_DB_*`). The database engine is the administrator's choice, set in `[database] engine` — `postgres` (default), `mysql`/`mariadb` or `sqlite` — and read at start-up: the same binary connects to whichever is named, and SQLite needs no server at all. Under the Kubuno supervisor the connection settings are injected by the core. See `module.toml` for the manifest (id, port, routes, sidebar entry, settings).
 
-## 🤝 Contributing
+## Tech stack
+
+Rust 2021 · Axum 0.7 · Tokio · SQLx 0.9 via `kubuno-db` (PostgreSQL, MySQL/MariaDB or SQLite; schema `contacts`) — React 19 · TypeScript · Vite · Tailwind CSS v4 · Zustand · React Query.
+
+## Contributing
 
 Contributions are welcome. Please open an issue to discuss any significant change before submitting a pull request.
 
-## 📄 License
+## License
 
 [AGPL-3.0-or-later](LICENSE) © Kubuno contributors.

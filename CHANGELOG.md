@@ -34,6 +34,12 @@ number at release time, and CI publishes that section as the GitHub Release note
   keeps working identically on all three engines.
 
 ### Fixed
+
+- **Database migrations keep the same checksum on every OS.** The repository now
+  pins line endings to LF (`.gitattributes`), so a checkout on Windows no longer
+  turns SQL migrations, scripts, manifests or sources into CRLF. A database
+  migrated by a Linux build is therefore no longer refused by a Windows or macOS
+  build of the same version because its migration checksums differ.
 - On PostgreSQL, label creation and label assignment now decode integer
   results at a portable width (the previous code read an `int4` result as
   `i64`, which PostgreSQL rejects); no behaviour change on SQLite or MySQL.

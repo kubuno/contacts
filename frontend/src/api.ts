@@ -1,4 +1,4 @@
-import { api as apiClient } from '@kubuno/sdk'
+import { api as apiClient, downloadSignedUrl } from '@kubuno/sdk'
 
 export interface ContactField {
   label?: string
@@ -247,6 +247,9 @@ export interface ContactsInstanceConfig {
 }
 
 const BASE = '/contacts'
+// Full browser-facing prefix, for URLs used outside the axios client
+// (<img src>, downloads) where the client's baseURL does not apply.
+const PUBLIC_BASE = '/api/v1/contacts'
 
 export const contactsApi = {
   // ── Contacts ──────────────────────────────────────────────────────────────
@@ -409,7 +412,7 @@ export const contactsApi = {
     const q = new URLSearchParams()
     if (params.group_id) q.set('group_id', params.group_id)
     if (params.starred !== undefined) q.set('starred', String(params.starred))
-    window.open(`${BASE}/contacts/export.csv${q.toString() ? '?' + q.toString() : ''}`, '_blank')
+    return downloadSignedUrl(`${PUBLIC_BASE}/export.csv${q.toString() ? '?' + q.toString() : ''}`, 'contacts.csv')
   },
 
   uploadAvatar: (id: string, file: File) => {
@@ -420,7 +423,7 @@ export const contactsApi = {
     })
   },
 
-  avatarUrl: (id: string) => `${BASE}/contacts/${id}/avatar`,
+  avatarUrl: (id: string) => `${PUBLIC_BASE}/contacts/${id}/avatar`,
 
   // ── Groups ────────────────────────────────────────────────────────────────
   listGroups: () =>
@@ -446,8 +449,8 @@ export const contactsApi = {
     const q = new URLSearchParams()
     if (params.group_id) q.set('group_id', params.group_id)
     if (params.starred !== undefined) q.set('starred', String(params.starred))
-    const url = `${BASE}/export.vcf${q.toString() ? '?' + q.toString() : ''}`
-    window.open(url, '_blank')
+    const url = `${PUBLIC_BASE}/export.vcf${q.toString() ? '?' + q.toString() : ''}`
+    return downloadSignedUrl(url, 'contacts.vcf')
   },
 
   importVcf: (file: File) => {

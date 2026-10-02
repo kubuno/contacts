@@ -1,6 +1,7 @@
 import { Contact } from './api'
 import { contactsApi } from './api'
 import { User } from 'lucide-react'
+import { useSignedUrl } from '@kubuno/sdk'
 
 interface Props {
   contact: Contact
@@ -19,6 +20,11 @@ const SIZES = {
 }
 
 export default function ContactAvatar({ contact, size = 'md', className = '' }: Props) {
+  // Local previews (data:/blob:) pass through; a server avatar gets a ticket.
+  const isLocal = !!contact.avatar_path && /^(data:|blob:)/.test(contact.avatar_path)
+  const avatarSrc = useSignedUrl(
+    !contact.avatar_path ? null : isLocal ? contact.avatar_path : contactsApi.avatarUrl(contact.id),
+  )
   const cls = `${SIZES[size]} rounded-full flex items-center justify-center font-semibold text-white flex-shrink-0 overflow-hidden ${className}`
 
   if (contact.avatar_path) {
@@ -28,12 +34,14 @@ export default function ContactAvatar({ contact, size = 'md', className = '' }: 
             editor, before any upload): it is already the image. Rebuilding a
             server URL from the contact id would 404 — and on a contact that does
             not exist yet, there is no id at all. */}
-        <img
-          src={/^(data:|blob:)/.test(contact.avatar_path) ? contact.avatar_path : contactsApi.avatarUrl(contact.id)}
-          alt={contact.display_name}
-          className="w-full h-full object-cover"
-          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-        />
+        {avatarSrc && (
+          <img
+            src={avatarSrc}
+            alt={contact.display_name}
+            className="w-full h-full object-cover"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        )}
       </div>
     )
   }

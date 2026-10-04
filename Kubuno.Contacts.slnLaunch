@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "Contacts (Kubuno Core + browser)",
+    "Projects": [
+      {
+        "Path": "Kubuno.Contacts.Server.rsproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "frontend\\Kubuno.Contacts.Web.esproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

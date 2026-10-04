@@ -50,6 +50,7 @@ pub async fn public_view(
     State(state): State<AppState>,
     Path(token): Path<String>,
     Query(q): Query<PublicQuery>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<Value>> {
     // Switching public links off must also close the ones already handed out;
     // "not found" rather than "forbidden" so the endpoint says nothing about
@@ -57,6 +58,13 @@ pub async fn public_view(
     if !state.instance().public_shares_enabled {
         return Err(ContactsError::NotFound("Partage".into()));
     }
-    let payload = share_service::resolve_share(&state.db, &token, q.password.as_deref()).await?;
+    // The password may come in a header (kept out of access logs and browser
+    // history) or, as before, in the query string.
+    let header_password = headers
+        .get("x-share-password")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    let password = header_password.or(q.password);
+    let payload = share_service::resolve_share(&state.db, &token, password.as_deref()).await?;
     Ok(Json(json!({ "kind": payload.kind, "contacts": payload.contacts })))
 }

@@ -26,6 +26,7 @@ validator          = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 kubuno-seccomp     = { workspace = true }
+kubuno-modauth     = { workspace = true }
 kubuno-db          = { workspace = true }
 thiserror          = { workspace = true }
 anyhow             = { workspace = true }
@@ -37,6 +38,8 @@ rand               = { workspace = true }
 base64             = { workspace = true }
 sha2               = { workspace = true }
 hex                = { workspace = true }
+# Share link passwords (salted, slow hash; legacy SHA-256 digests are upgraded on use).
+argon2             = { workspace = true }
 toml               = { workspace = true }
 clap               = { workspace = true }
 kubuno-storage     = { workspace = true }
@@ -107,6 +110,7 @@ tracing-appender   = "0.2"
 tokio-util         = { version = "0.7", features = ["io"] }
 kubuno-storage     = { git = "https://github.com/kubuno/core", tag = "storage-v0.1.1", package = "kubuno-storage" }
 kubuno-seccomp     = { git = "https://github.com/kubuno/core", tag = "seccomp-v0.1.1", package = "kubuno-seccomp" }
+kubuno-modauth     = { git = "https://github.com/kubuno/core", tag = "modauth-v0.1.0", package = "kubuno-modauth" }
 kubuno-db          = { git = "https://github.com/kubuno/core", tag = "db-v0.9.0", package = "kubuno-db" }
 
 # Erreurs

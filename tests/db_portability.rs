@@ -274,6 +274,73 @@ async fn full_suite(pool: &kubuno_db::DbPool) {
         dups.iter().any(|g| g.contacts.iter().any(|c| c.id == d1.id)),
         "the two contacts sharing an e-mail are reported as duplicates"
     );
+
+    share_suite(pool, owner).await;
+}
+
+/// Public share links: only the public projection leaves, a legacy unsalted
+/// password digest still opens the link and is upgraded to Argon2, and the view
+/// cap is enforced by the counting update itself.
+async fn share_suite(pool: &kubuno_db::DbPool, owner: Uuid) {
+    use kubuno_contacts::config::instance::InstanceConfig;
+    use kubuno_contacts::models::share::CreateShareDto;
+    use kubuno_contacts::services::share_service;
+
+    let mut dto = new_contact("Partagé Public", Some("Org"), vec![email("pub@example.com")]);
+    dto.notes = Some("private note".into());
+    let c = contact_service::create_contact(pool, owner, &dto).await.expect("shared contact");
+    let cfg = InstanceConfig::default();
+    let share = share_service::create_share(
+        pool,
+        owner,
+        &CreateShareDto { contact_id: Some(c.id), group_id: None, expires_in_days: None, max_accesses: Some(2), password: None },
+        &cfg,
+    )
+    .await
+    .expect("share");
+
+    let got = share_service::resolve_share(pool, &share.token, None).await.expect("resolve");
+    assert_eq!(got.contacts.len(), 1);
+    let json = serde_json::to_value(&got.contacts[0]).expect("json");
+    assert_eq!(json["display_name"], "Partagé Public");
+    for hidden in ["owner_id", "notes", "custom_fields", "kubuno_user_id", "avatar_path", "vcard_uid", "id"] {
+        assert!(json.get(hidden).is_none(), "{hidden} must not be public");
+    }
+    // Second view allowed, third over the cap.
+    share_service::resolve_share(pool, &share.token, None).await.expect("second view");
+    assert!(share_service::resolve_share(pool, &share.token, None).await.is_err(), "view cap");
+
+    // A link made before Argon2: an unsalted SHA-256 digest.
+    let legacy = share_service::create_share(
+        pool,
+        owner,
+        &CreateShareDto { contact_id: Some(c.id), group_id: None, expires_in_days: None, max_accesses: None, password: None },
+        &cfg,
+    )
+    .await
+    .expect("legacy share");
+    pool.execute(
+        "UPDATE contacts.shares SET password_hash = $1 WHERE id = $2",
+        params![share_service::sha256_hex("pw"), legacy.id],
+    )
+    .await
+    .expect("set legacy hash");
+    assert!(share_service::resolve_share(pool, &legacy.token, None).await.is_err(), "password required");
+    assert!(share_service::resolve_share(pool, &legacy.token, Some("bad")).await.is_err(), "wrong password");
+    share_service::resolve_share(pool, &legacy.token, Some("pw")).await.expect("legacy password opens");
+    let stored: Option<String> = pool
+        .fetch_optional_scalar::<Option<String>>("SELECT password_hash FROM contacts.shares WHERE id = $1", params![legacy.id])
+        .await
+        .expect("hash")
+        .flatten();
+    assert!(stored.as_deref().is_some_and(|h| h.starts_with("$argon2id$")), "upgraded to Argon2");
+    share_service::resolve_share(pool, &legacy.token, Some("pw")).await.expect("still opens after upgrade");
+
+    // An archived contact is no longer served.
+    pool.execute("UPDATE contacts.contacts SET is_archived = TRUE WHERE id = $1", params![c.id])
+        .await
+        .expect("archive");
+    assert!(share_service::resolve_share(pool, &legacy.token, Some("pw")).await.is_err(), "archived");
 }
 
 async fn label_change_seq(pool: &kubuno_db::DbPool, id: Uuid) -> i64 {

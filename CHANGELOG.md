@@ -59,6 +59,16 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Security
 
+- **The signed-in user is now taken from the core's signed identity token only.** The module used to trust the
+  plain `X-Kubuno-User-Id` / `-Role` / `-Email` headers, so any process able to reach its local port could
+  act as any user, administrators included. It now accepts a request only with a valid `X-Kubuno-Auth` token
+  signed by the core with this module's own secret, for this module, and not expired (`kubuno-modauth`); the
+  plain headers are ignored. With no internal secret configured, every user request is refused. The `/internal/*` guard is unchanged (it already refused an empty secret and compared in constant time).
+- **A public contact link now discloses only what is needed to reach the person**: names, organisation and title, e-mail addresses, phone numbers, postal addresses and web sites. Notes, custom fields, relations, dates (birthdays), instant messaging, internal identifiers, storage paths and usage counters are no longer included.
+- **Share link passwords are now stored with Argon2id and a random salt** instead of an unsalted SHA-256 digest, and checked in constant time. Links created before keep working: their password is re-hashed with Argon2id the first time it is used.
+- **The password can be sent in an `X-Share-Password` header** (kept out of access logs and browser history); `?password=` still works.
+- **Shared contacts are re-checked on every view**: a contact that is archived, blocked, trashed or no longer belongs to the link's owner is not served, and an expired or exhausted link answers "not found" without saying why. The view cap is enforced atomically, so concurrent views cannot exceed it.
+
 - **Contact photos and CSV/vCard exports no longer rely on the access-token cookie the web client used to
   keep readable by page scripts**; they use short-lived signed tickets. Requires a Kubuno core that issues signed tickets (`POST /api/v1/auth/tickets`) and `@kubuno/sdk` with the signed-URL helpers.
 - **Security fixes from the shared database layer (kubuno-db 0.9.0).** The

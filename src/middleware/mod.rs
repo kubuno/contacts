@@ -1,5 +1,6 @@
 use axum::{
     extract::{Request, State},
+    http::HeaderMap,
     middleware::Next,
     response::Response,
 };
@@ -16,79 +17,32 @@ pub struct ContactsUser {
 
 pub type ContactsUserExt = axum::Extension<ContactsUser>;
 
-pub async fn require_auth(
-    State(_state): State<AppState>,
-    mut req: Request,
-    next: Next,
-) -> std::result::Result<Response, ContactsError> {
-    let user_id = req
-        .headers()
-        .get("x-kubuno-user-id")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| Uuid::parse_str(s).ok())
-        .ok_or(ContactsError::Unauthorized)?;
+/// This module's id, the audience of the identity tokens the core mints for it.
+const MODULE_ID: &str = "contacts";
 
-    let role = req
-        .headers()
-        .get("x-kubuno-user-role")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("user")
-        .to_string();
-
-    let email = req
-        .headers()
-        .get("x-kubuno-user-email")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_string();
-
-    req.extensions_mut()
-        .insert(ContactsUser { id: user_id, role, email });
-    Ok(next.run(req).await)
+/// Who the core says is calling, from the signed `X-Kubuno-Auth` token the core
+/// mints with this module's internal secret (see `kubuno-modauth`).
+///
+/// The plain `X-Kubuno-User-*` headers are never read: any process reaching this
+/// module's loopback port could set them and impersonate any user. A token is
+/// only accepted when it was signed with this module's secret, for this module,
+/// and has not expired. An **empty** configured secret refuses everything: an
+/// HMAC keyed with nothing would let anyone mint a valid token.
+pub fn authenticate(secret: &str, headers: &HeaderMap) -> Option<kubuno_modauth::ModuleUser> {
+    if secret.is_empty() {
+        tracing::error!(
+            "contacts: core.internal_secret is empty, request refused. Set KUBUNO_INTERNAL_SECRET."
+        );
+        return None;
+    }
+    let token = headers.get(kubuno_modauth::TOKEN_HEADER)?.to_str().ok()?;
+    kubuno_modauth::verify(secret.as_bytes(), token, MODULE_ID).ok()
 }
 
-/// Guard of the `/internal/*` sub-router: the core, and nothing else.
-///
-/// Unlike every other route of this module, an internal one is not reached
-/// through the core's proxy and therefore carries no `x-kubuno-user-id` to
-/// trust. What authenticates it is the shared secret the core handed this
-/// process at startup (`KUBUNO_INTERNAL_SECRET`), presented verbatim in
-/// `X-Internal-Secret`.
-///
-/// Two refusals, and the second one matters as much as the first: an **empty**
-/// configured secret refuses everything. Without that check, a module started
-/// outside the supervisor — with no secret in its environment — would accept any
-/// request sending an empty header, which for the export route means handing an
-/// entire address book to anyone who can reach the port.
-///
-/// The comparison is constant-time. The secret is long and random, so a timing
-/// attack against it is theoretical; the reason to do it anyway is that "the
-/// theoretical one did not apply here" is a judgement that has to be re-made
-/// correctly every time somebody copies this function.
-pub async fn require_internal_secret(
-    State(state): State<AppState>,
-    req: Request,
-    next: Next,
-) -> std::result::Result<Response, ContactsError> {
-    let expected = state.settings.core.internal_secret.as_str();
-    if expected.is_empty() {
-        tracing::error!(
-            "contacts: core.internal_secret vide — route interne refusée. \
-             Renseignez KUBUNO_INTERNAL_SECRET."
-        );
-        return Err(ContactsError::Unauthorized);
-    }
-
-    let provided = req
-        .headers()
-        .get("x-internal-secret")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if !constant_time_eq(provided.as_bytes(), expected.as_bytes()) {
-        return Err(ContactsError::Unauthorized);
-    }
-    Ok(next.run(req).await)
+/// Whether `provided` is the configured internal secret: never when that secret
+/// is empty, and compared in constant time.
+pub fn internal_secret_matches(expected: &str, provided: &str) -> bool {
+    !expected.is_empty() && constant_time_eq(provided.as_bytes(), expected.as_bytes())
 }
 
 /// Byte comparison whose duration does not depend on where the first difference
@@ -100,15 +54,116 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
+/// Authenticates the caller from the signed identity token (see [`authenticate`]).
+pub async fn require_auth(
+    State(state): State<AppState>,
+    mut req: Request,
+    next: Next,
+) -> std::result::Result<Response, ContactsError> {
+    let user = authenticate(&state.settings.core.internal_secret, req.headers())
+        .ok_or(ContactsError::Unauthorized)?;
+    req.extensions_mut()
+        .insert(ContactsUser { id: user.id, role: user.role, email: user.email });
+    Ok(next.run(req).await)
+}
+
+/// Guard of the `/internal/*` sub-router: the core, and nothing else.
+///
+/// Unlike every other route of this module, an internal one is not reached
+/// through the core's proxy and carries no identity token. What authenticates it
+/// is the shared secret the core handed this process at startup
+/// (`KUBUNO_INTERNAL_SECRET`), presented verbatim in `X-Internal-Secret`.
+///
+/// An **empty** configured secret refuses everything: a module started outside
+/// the supervisor would otherwise accept any request sending an empty header,
+/// which for the export route means handing an entire address book to anyone who
+/// can reach the port. The comparison is constant-time.
+pub async fn require_internal_secret(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> std::result::Result<Response, ContactsError> {
+    let expected = state.settings.core.internal_secret.as_str();
+    if expected.is_empty() {
+        tracing::error!(
+            "contacts: core.internal_secret is empty, internal route refused. Set KUBUNO_INTERNAL_SECRET."
+        );
+        return Err(ContactsError::Unauthorized);
+    }
+    let provided = req
+        .headers()
+        .get("x-internal-secret")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if !internal_secret_matches(expected, provided) {
+        return Err(ContactsError::Unauthorized);
+    }
+    Ok(next.run(req).await)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::constant_time_eq;
+    use super::*;
+    use axum::http::{HeaderMap, HeaderValue};
+
+    const SECRET: &str = "module-secret-for-tests";
+
+    fn user() -> kubuno_modauth::ModuleUser {
+        kubuno_modauth::ModuleUser {
+            id: Uuid::new_v4(),
+            role: "user".into(),
+            email: "ada@example.org".into(),
+        }
+    }
+
+    fn with_token(token: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert(kubuno_modauth::TOKEN_HEADER, HeaderValue::from_str(token).expect("header"));
+        h
+    }
 
     #[test]
-    fn the_comparison_still_compares() {
+    fn forged_plain_headers_are_not_an_identity() {
+        let mut h = HeaderMap::new();
+        h.insert("x-kubuno-user-id", HeaderValue::from_static("0e835e1a-64fb-47c4-9775-5786236fce19"));
+        h.insert("x-kubuno-user-role", HeaderValue::from_static("admin"));
+        h.insert("x-kubuno-user-email", HeaderValue::from_static("admin@example.org"));
+        assert!(authenticate(SECRET, &h).is_none());
+    }
+
+    #[test]
+    fn a_token_signed_for_this_module_is_accepted() {
+        let u = user();
+        let token = kubuno_modauth::sign(SECRET.as_bytes(), &u, MODULE_ID);
+        let got = authenticate(SECRET, &with_token(&token)).expect("valid token");
+        assert_eq!(got.id, u.id);
+        assert_eq!(got.email, u.email);
+        assert_eq!(got.role, u.role);
+    }
+
+    #[test]
+    fn a_token_for_another_module_or_key_is_refused() {
+        let u = user();
+        let other_aud = kubuno_modauth::sign(SECRET.as_bytes(), &u, "some-other-module");
+        assert!(authenticate(SECRET, &with_token(&other_aud)).is_none());
+        let other_key = kubuno_modauth::sign(b"another-secret", &u, MODULE_ID);
+        assert!(authenticate(SECRET, &with_token(&other_key)).is_none());
+        assert!(authenticate(SECRET, &with_token("v1.garbage.garbage")).is_none());
+    }
+
+    #[test]
+    fn an_empty_secret_refuses_everything() {
+        let token = kubuno_modauth::sign(b"", &user(), MODULE_ID);
+        assert!(authenticate("", &with_token(&token)).is_none());
+    }
+
+    #[test]
+    fn the_internal_secret_guard() {
+        assert!(internal_secret_matches("abc", "abc"));
+        assert!(!internal_secret_matches("abc", "abd"));
+        assert!(!internal_secret_matches("abc", ""));
+        assert!(!internal_secret_matches("", ""));
         assert!(constant_time_eq(b"abc", b"abc"));
-        assert!(!constant_time_eq(b"abc", b"abd"));
         assert!(!constant_time_eq(b"abc", b"ab"));
-        assert!(constant_time_eq(b"", b""));
     }
 }

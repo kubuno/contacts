@@ -40,6 +40,8 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Fixed
 
+- **Files kept on the server's local storage are found again on Windows and under symlinked storage
+  roots** (shared storage layer updated to kubuno-storage 0.1.2).
 - **Contact photos and the CSV/vCard exports pointed at addresses that do not exist** (missing `/api/v1`
   prefix, wrong export path); they now use the real routes.
 - **Database migrations keep the same checksum on every OS.** The repository now

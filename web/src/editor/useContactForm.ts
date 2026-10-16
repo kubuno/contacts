@@ -6,8 +6,8 @@ import { parseDateValue, formatDateValue, EMPTY_DATE } from './dateValue'
 import { parsePhoneValue, formatPhoneValue, isPhoneEmpty, DEFAULT_COUNTRY } from './phoneValue'
 
 /* Editor state and saving, kept out of the view so the form's shape is readable
- * on its own. Composite fields (phone, date) live here in their STRUCTURED form
- * - the shape their @ui component speaks - and are folded back into the strings
+ * on its own. Composite fields (phone, date) live here in their STRUCTURED form -
+ * the shape their @ui component speaks - and are folded back into the strings
  * the API stores only at save time. */
 
 export interface EmailRow  { value: string; type: string }

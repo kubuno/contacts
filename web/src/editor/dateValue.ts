@@ -2,7 +2,7 @@ import type { DateValue } from '@ui'
 
 /* Conversion between the split DateField value (day / month / year, the year
  * optional) and the string the API stores. The backend's parser accepts
- * `YYYY-MM-DD` and the vCard `--MM-DD` form for a date whose year is unknown —
+ * `YYYY-MM-DD` and the vCard `--MM-DD` form for a date whose year is unknown -
  * a birthday you celebrate without knowing the age. */
 
 export const EMPTY_DATE: DateValue = { day: '', month: '', year: '' }

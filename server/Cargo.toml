@@ -2,7 +2,7 @@
 name        = "kubuno-contacts"
 version     = "0.1.9"
 edition     = "2021"
-description = "Kubuno Contacts — carnet d'adresses, groupes, CardDAV, annuaire d'instance"
+description = "Kubuno Contacts - carnet d'adresses, groupes, CardDAV, annuaire d'instance"
 license     = "AGPL-3.0"
 repository  = "https://github.com/kubuno/contacts"
 

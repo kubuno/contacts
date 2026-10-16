@@ -2,9 +2,9 @@
 // Modules ▸ Contacts.
 //
 // Two bespoke sections sit beside the declared settings:
-//   • "directory"   — says where the ACCOUNT directory is governed (the core),
+//   • "directory"   - says where the ACCOUNT directory is governed (the core),
 //                     because this module deliberately does not govern it;
-//   • "shared_book" — the instance's shared address book, which needs records,
+//   • "shared_book" - the instance's shared address book, which needs records,
 //                     not a toggle: the setting next to it only publishes it.
 
 import { useCallback, useEffect, useState } from 'react'
@@ -30,7 +30,7 @@ function DirectoryNotice() {
           </p>
           <p>
             Ce module ne les redéfinit pas et n'en garde pas de copie : une copie locale
-            contournerait cette politique — c'est exactement pourquoi celle qui existait a été
+            contournerait cette politique - c'est exactement pourquoi celle qui existait a été
             supprimée. Les pages suivantes ne portent donc que sur ce que le module possède :
             les carnets personnels, les liens de partage, la synchronisation et le carnet
             partagé de l'instance.
@@ -128,7 +128,7 @@ function SharedBookManager() {
       <Callout variant="info" title="Contacts sans compte">
         Ce carnet est tenu par l'administration et visible de tous les utilisateurs, en lecture
         seule : fournisseurs, partenaires, numéros d'urgence. Les comptes de l'instance n'y ont
-        pas leur place — ils sont déjà dans l'annuaire. Le réglage ci-dessus décide seulement de
+        pas leur place - ils sont déjà dans l'annuaire. Le réglage ci-dessus décide seulement de
         sa diffusion ; les fiches restent modifiables ici même lorsqu'il est désactivé.
       </Callout>
 
@@ -199,9 +199,9 @@ function SharedBookManager() {
               {rows.map(c => (
                 <tr key={c.id} className="border-t border-border">
                   <td className="px-3 py-2 text-text-primary">{c.display_name}</td>
-                  <td className="px-3 py-2 text-text-secondary">{c.organization || '—'}</td>
-                  <td className="px-3 py-2 text-text-secondary">{c.email || '—'}</td>
-                  <td className="px-3 py-2 text-text-secondary">{c.phone || '—'}</td>
+                  <td className="px-3 py-2 text-text-secondary">{c.organization || '-'}</td>
+                  <td className="px-3 py-2 text-text-secondary">{c.email || '-'}</td>
+                  <td className="px-3 py-2 text-text-secondary">{c.phone || '-'}</td>
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="sm" onClick={() => startEdit(c)} title="Modifier">

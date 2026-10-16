@@ -50,7 +50,7 @@ export default function ContactsSidebarBody({ collapsed = false }: { collapsed?:
 
   // Row layout shared by labels and groups: the row itself is a plain container
   // carrying the hover/active skin, the navigation is a real <Link> filling it,
-  // and the delete affordance is a SIBLING anchor — never an <a> inside an <a>,
+  // and the delete affordance is a SIBLING anchor - never an <a> inside an <a>,
   // never a <button> in the sidebar.
   const rowCls = (active: boolean) =>
     `group flex items-center gap-3 px-3 py-2 rounded-full text-sm transition-colors ${

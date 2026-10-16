@@ -2,7 +2,7 @@
 id            = "contacts"
 display_name  = "Contacts"
 version       = "0.1.9"
-description   = "Carnet d'adresses — contacts, groupes, CardDAV, annuaire d'instance"
+description   = "Carnet d'adresses - contacts, groupes, CardDAV, annuaire d'instance"
 author        = "Kubuno Contributors"
 license       = "AGPL-3.0"
 runtime       = "rust"

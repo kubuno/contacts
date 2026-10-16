@@ -39,7 +39,7 @@ fn parse_basic(headers: &HeaderMap) -> Option<String> {
     let b64 = auth.strip_prefix("Basic ")?;
     let decoded = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
     let s = String::from_utf8(decoded).ok()?;
-    // username:password — the password carries the token.
+    // username:password - the password carries the token.
     let (_, pass) = s.split_once(':')?;
     Some(pass.to_string())
 }
@@ -51,7 +51,7 @@ async fn dav_dispatch(
     body: &Bytes,
     req_path: &str,
 ) -> Response {
-    // Instance policy: with CardDAV off the endpoint answers nothing at all —
+    // Instance policy: with CardDAV off the endpoint answers nothing at all -
     // capability discovery included, so a client stops retrying instead of
     // looping on a credential it believes to be wrong.
     if !state.instance().carddav_enabled {

@@ -7,7 +7,7 @@ import { contactsApi } from '../api'
 
 /**
  * The list controls: sort, filter, the list/grid/table switch and the overflow
- * (export/import) menu. The table mode is a desktop affair — a phone screen has
+ * (export/import) menu. The table mode is a desktop affair - a phone screen has
  * no room for it, so on mobile the switch is list/grid only and the current mode
  * is coerced away from `table`.
  */
@@ -64,7 +64,7 @@ export default function ListToolbar({ isMobile }: { isMobile: boolean }) {
       <div className="flex items-center gap-0.5 bg-surface-1 rounded-lg p-0.5">
         {modeBtn('list', <List size={16} />)}
         {modeBtn('grid', <LayoutGrid size={16} />)}
-        {/* Table is a desktop-only density — no room on a phone. */}
+        {/* Table is a desktop-only density - no room on a phone. */}
         {!isMobile && modeBtn('table', <TableIcon size={16} />)}
       </div>
       <button onClick={openActionsMenu} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-2 text-text-secondary"><MoreHorizontal size={16} /></button>

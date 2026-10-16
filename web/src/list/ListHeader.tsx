@@ -3,7 +3,7 @@ import { Search, UserPlus } from 'lucide-react'
 
 /** View title with its count, and the in-view search box. On a phone the title
  *  shrinks, the search takes the full width on its own line, and a "+" appears
- *  top-right for creating a contact — the desktop's sidebar "New" button is in
+ *  top-right for creating a contact - the desktop's sidebar "New" button is in
  *  the drawer on mobile, and the shell already owns the bottom-right FAB slot
  *  (the app-switcher waffle), so a second floating button there would collide. */
 export default function ListHeader({ title, total, search, onSearch, isMobile, onCreate }: {

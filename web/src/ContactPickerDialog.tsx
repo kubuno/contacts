@@ -3,7 +3,7 @@
  *
  * Rendered by the host shell in every route, so a CONSUMER module (chat…) can
  * open it purely through `ModuleServiceRegistry.call('contacts', 'pickContact')`
- * — no cross-module import, no route change. The pending promise lives in
+ * - no cross-module import, no route change. The pending promise lives in
  * `contactPickerStore` (drive's `filesDialogStore` pattern) and is settled here.
  */
 import { useEffect, useRef, useState } from 'react'

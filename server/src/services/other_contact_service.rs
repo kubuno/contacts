@@ -30,8 +30,8 @@ pub struct SeenInterlocutor {
     pub display_name: Option<String>,
 }
 
-/// Lower-cased and trimmed, so the same person reported by two modules — or with
-/// a different capitalisation — lands on the same row.
+/// Lower-cased and trimmed, so the same person reported by two modules - or with
+/// a different capitalisation - lands on the same row.
 fn normalise(kind: &str, value: &str) -> String {
     let v = value.trim();
     if kind == "email" { v.to_lowercase() } else { v.to_string() }

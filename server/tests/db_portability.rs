@@ -1,6 +1,6 @@
 //! Runs the contacts module's own migrations, services and delta/search
 //! primitives against a real server of **each** engine, from a single compiled
-//! binary — the proof that the engine is a run-time choice, not a build-time
+//! binary - the proof that the engine is a run-time choice, not a build-time
 //! one, and that the ported primitives (the change journal, the normalized
 //! full-text search, the JSON field arrays) behave identically on all of them.
 //!
@@ -182,7 +182,7 @@ async fn full_suite(pool: &kubuno_db::DbPool) {
     // A plural query word finds the singular stored form (trashed c2 excluded).
     assert_eq!(search_names(pool, owner, "chevaux").await, vec!["Jean Chevaux".to_owned()]);
     // Accent folding on an organization: "developpement" finds "Développement".
-    // (c2 carries that org but is trashed, so nothing matches — assert emptiness
+    // (c2 carries that org but is trashed, so nothing matches - assert emptiness
     //  confirms trashed rows are excluded from search.)
     assert!(search_names(pool, owner, "developpement").await.is_empty());
     // Accent folding on a display name: "resume" finds "Résumé".
@@ -258,7 +258,7 @@ async fn full_suite(pool: &kubuno_db::DbPool) {
     assert!(feed.iter().any(|c| c.id == c3.id && c.deleted), "deleted contact tombstoned");
 
     // ── duplicate detection: two contacts sharing an e-mail are grouped ──
-    // (c1 and c3 shared alice@example.com — but c3 was just deleted; use a pair.)
+    // (c1 and c3 shared alice@example.com - but c3 was just deleted; use a pair.)
     let d1 = contact_service::create_contact(
         pool, owner, &new_contact("Doublon Un", None, vec![email("dup@example.com")]),
     )

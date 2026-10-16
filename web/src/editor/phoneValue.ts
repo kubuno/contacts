@@ -1,8 +1,8 @@
 import { COUNTRIES, countryOf, type PhoneValue } from '@ui'
 
 /* Conversion between the structured PhoneField value (ISO country + local
- * number) and the single string the API stores. Storage stays a plain string —
- * that is what vCard, CardDAV and every consumer already read — so the country
+ * number) and the single string the API stores. Storage stays a plain string -
+ * that is what vCard, CardDAV and every consumer already read - so the country
  * is folded back into the international prefix on save.
  *
  * Both directions read the SAME country table the selector uses, so a number
@@ -34,7 +34,7 @@ export function formatPhoneValue(v: PhoneValue): string {
   const dial = countryOf(v.country)?.dial
   if (!dial) return n
   // A local number often keeps its trunk "0" (06…): it is dropped once the
-  // country code is in front, as +33 6… — not +33 06…
+  // country code is in front, as +33 6… - not +33 06…
   return `+${dial}${n.startsWith('0') ? n.slice(1) : n}`
 }
 

@@ -220,7 +220,7 @@ fn push_token_condition(fb: &mut FilterBuilder, tok: &SearchToken) {
             let norm = normalize(&tok.term);
             let digits = phone_digits(&tok.term);
             if norm.is_empty() && digits.is_empty() {
-                // Nothing to match on — leave the token out rather than let an
+                // Nothing to match on - leave the token out rather than let an
                 // empty `%%` return the whole address book.
                 fb.raw(" 1 = 1");
                 return;
@@ -245,7 +245,7 @@ fn push_token_condition(fb: &mut FilterBuilder, tok: &SearchToken) {
 
 /// The ORDER BY expression for a sort key. Kept portable: PostgreSQL's
 /// `NULLS LAST` has no MySQL/SQLite form, so a "nulls last" ordering is written
-/// as `(col IS NULL), col DESC` — a form all three engines share.
+/// as `(col IS NULL), col DESC` - a form all three engines share.
 fn order_clause(sort: Option<&str>) -> &'static str {
     match sort {
         Some("name_desc")        => "c.display_name DESC",
@@ -996,7 +996,7 @@ pub async fn merge_contacts(
         primary.is_starred = primary.is_starred || d.is_starred;
     }
 
-    // Groups whose membership will gain the primary — read before the write so
+    // Groups whose membership will gain the primary - read before the write so
     // they can be bumped afterwards (the old trigger's job), letting a syncing
     // client see the new member.
     let gm_list = db.backend().in_list(1, dup_ids.len());

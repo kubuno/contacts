@@ -7,7 +7,7 @@ import { DEFAULT_COUNTRY } from './phoneValue'
 import type { PhoneRow } from './useContactForm'
 
 /** Phone numbers, each with its country dial-code selector and an editable
- *  label (Mobile, Domicile…) — the shared `PhoneField` primitive. */
+ *  label (Mobile, Domicile…) - the shared `PhoneField` primitive. */
 export default function PhoneSection({ rows, onChange, accent }: {
   rows:     PhoneRow[]
   onChange: (rows: PhoneRow[]) => void
@@ -25,7 +25,7 @@ export default function PhoneSection({ rows, onChange, accent }: {
         <FieldRow key={i} icon={i === 0 ? <Phone size={20} /> : undefined}
           onRemove={() => onChange(rows.filter((_, j) => j !== i))}>
           {/* icon={null}: the row's gutter already carries the single handset
-              icon — the primitive would otherwise draw a second one. The label
+              icon - the primitive would otherwise draw a second one. The label
               combobox only appears once a number is typed, so an untouched form
               stays as sparse as Google's. */}
           <PhoneField value={r.phone} primaryColor={accent} icon={null}

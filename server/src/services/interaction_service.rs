@@ -115,7 +115,7 @@ pub async fn to_follow_up(
     days: i64,
     limit: i64,
 ) -> Result<Vec<ContactWithLabels>> {
-    // The cutoff is computed in Rust (portable — no `make_interval`).
+    // The cutoff is computed in Rust (portable - no `make_interval`).
     let cutoff = Utc::now() - Duration::days(days.clamp(1, 3650));
     let rows = db
         .fetch_all_as::<Contact>(

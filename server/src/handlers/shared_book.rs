@@ -2,7 +2,7 @@
 //!
 //! Read by everyone, written by administrators only. The read is additionally
 //! gated by the instance setting `shared_book_enabled`, so an administrator can
-//! prepare the book before publishing it — writes keep working while it is
+//! prepare the book before publishing it - writes keep working while it is
 //! unpublished, reads do not.
 //!
 //! This is NOT the account directory: accounts live in `core.users` under the
@@ -47,7 +47,7 @@ fn blank_to_none(v: Option<String>) -> Option<Option<String>> {
     })
 }
 
-/// GET /shared-book — the published book, or the whole of it for an admin.
+/// GET /shared-book - the published book, or the whole of it for an admin.
 pub async fn list(
     State(state): State<AppState>,
     Extension(user): Extension<ContactsUser>,
@@ -62,7 +62,7 @@ pub async fn list(
     }
 
     let q = params.q.map(|s| s.trim().to_lowercase()).unwrap_or_default();
-    // The search pattern is built in Rust (no `'%'||$1||'%'` — `||` is logical
+    // The search pattern is built in Rust (no `'%'||$1||'%'` - `||` is logical
     // OR on MySQL) and bound once per column (a placeholder may not be reused).
     let rows: Vec<SharedContact> = if q.is_empty() {
         state
@@ -94,7 +94,7 @@ pub async fn list(
     Ok(Json(json!({ "contacts": rows, "enabled": enabled })))
 }
 
-/// POST /shared-book — add an entry (administrators only).
+/// POST /shared-book - add an entry (administrators only).
 pub async fn create(
     State(state): State<AppState>,
     Extension(user): Extension<ContactsUser>,
@@ -147,7 +147,7 @@ pub async fn create(
     Ok(Json(json!({ "contact": contact })))
 }
 
-/// PATCH /shared-book/:id — edit an entry (administrators only).
+/// PATCH /shared-book/:id - edit an entry (administrators only).
 pub async fn update(
     State(state): State<AppState>,
     Extension(user): Extension<ContactsUser>,
@@ -217,7 +217,7 @@ pub async fn update(
     Ok(Json(json!({ "contact": contact })))
 }
 
-/// DELETE /shared-book/:id — remove an entry (administrators only).
+/// DELETE /shared-book/:id - remove an entry (administrators only).
 pub async fn delete(
     State(state): State<AppState>,
     Extension(user): Extension<ContactsUser>,

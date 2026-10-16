@@ -4,7 +4,7 @@ import { X } from 'lucide-react'
 /* Height of ONE field box, shared with the @ui primitives (`FieldGroup.rowH`,
  * `PhoneField.boxH`). The icon and the remove button are centred inside a band
  * of exactly this height at the TOP of the row, so on a block of several
- * stacked fields — a postal address — they sit on the first field instead of
+ * stacked fields - a postal address - they sit on the first field instead of
  * drifting to the middle of the stack. */
 const ROW_H = 48
 
@@ -16,7 +16,7 @@ const ROW_H = 48
  * same left edge. Only the FIRST row of a section carries the icon; the others
  * keep an empty gutter so the column stays true.
  *
- * The cross appears on hover / keyboard focus like Google's, never permanently —
+ * The cross appears on hover / keyboard focus like Google's, never permanently -
  * a delete affordance on every row at rest turns a form into a minefield.
  */
 export default function FieldRow({ icon, onRemove, children }: {

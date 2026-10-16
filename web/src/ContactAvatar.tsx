@@ -32,7 +32,7 @@ export default function ContactAvatar({ contact, size = 'md', className = '' }: 
       <div className={cls}>
         {/* A data:/blob: path is a LOCAL preview (a photo just picked in the
             editor, before any upload): it is already the image. Rebuilding a
-            server URL from the contact id would 404 — and on a contact that does
+            server URL from the contact id would 404 - and on a contact that does
             not exist yet, there is no id at all. */}
         {avatarSrc && (
           <img

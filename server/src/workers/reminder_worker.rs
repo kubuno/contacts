@@ -45,7 +45,7 @@ async fn tick(db: &DbPool, settings: &Settings) -> Result<(), sqlx::Error> {
 
     // List the candidates, then claim each one on its own. The claim is the
     // UPDATE itself: it only touches a row that is still unnotified, so the
-    // number of rows it changed IS the proof of ownership — exactly one worker
+    // number of rows it changed IS the proof of ownership - exactly one worker
     // can see 1. This guard-column form is also the only one every engine can
     // express: neither SQLite nor MariaDB offers `SKIP LOCKED`.
     let due: Vec<DueReminder> = db

@@ -90,13 +90,13 @@ pub fn build(state: AppState) -> Router {
     // rien d'autre : elles ne passent pas par le proxy du core et ne portent
     // donc aucun `x-kubuno-user-id` digne de confiance. Le garde est posé en
     // `.layer()` sur ce sous-routeur, de sorte qu'une route ajoutée ensuite en
-    // hérite — c'est le motif de `drive`, et l'oubli inverse (vérifier dans
+    // hérite - c'est le motif de `drive`, et l'oubli inverse (vérifier dans
     // chaque handler) est celui qu'on finit par ne pas faire.
     //
     // Contrat d'export module→core, v1 : cf. handlers::export.
     let internal = Router::new()
         // Core → module event delivery. The core tries /ipc/events first and
-        // /events second, and posts X-Internal-Secret on BOTH — so both live
+        // /events second, and posts X-Internal-Secret on BOTH - so both live
         // behind the guard. Left open, either one lets anyone inject events:
         // forged interlocutors would surface in "Other contacts".
         .route("/ipc/events", post(events::handle_event))

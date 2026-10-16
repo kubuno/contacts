@@ -91,7 +91,7 @@ export default function DirectoryView() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-text-primary">{p.display_name}</p>
                 <p className="text-xs text-text-secondary">{p.email}</p>
-                {p.job_title && <p className="text-xs text-text-secondary">{p.job_title}{p.department ? ` — ${p.department}` : ''}</p>}
+                {p.job_title && <p className="text-xs text-text-secondary">{p.job_title}{p.department ? ` - ${p.department}` : ''}</p>}
               </div>
               <Button
                 variant="secondary"
@@ -122,7 +122,7 @@ export default function DirectoryView() {
                     {c.email && <p className="text-xs text-text-secondary truncate">{c.email}</p>}
                     {(c.job_title || c.organization) && (
                       <p className="text-xs text-text-secondary truncate">
-                        {[c.job_title, c.organization].filter(Boolean).join(' — ')}
+                        {[c.job_title, c.organization].filter(Boolean).join(' - ')}
                       </p>
                     )}
                   </div>

@@ -47,7 +47,7 @@ export function BirthdaysView() {
   async function remind(d: UpcomingDate) {
     await contactsApi.createReminder({
       contact_id: d.contact_id, kind: 'birthday',
-      message: `${d.label} — ${d.display_name}`,
+      message: `${d.label} - ${d.display_name}`,
       remind_at: new Date(d.next_occurrence + 'T09:00:00').toISOString(),
       recurrence: 'yearly',
     })

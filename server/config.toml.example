@@ -1,4 +1,4 @@
-# ── Kubuno Contacts — configuration exemple ──────────────────────────────────
+# ── Kubuno Contacts - configuration exemple ──────────────────────────────────
 # Copier ce fichier vers config.toml et adapter les valeurs.
 # Variables d'environnement : préfixe KC__
 # Ex: KC__SERVER__PORT=3110
@@ -10,7 +10,7 @@ port = 3110
 [core]
 # URL du core Kubuno (pour l'enregistrement du module)
 url             = "http://127.0.0.1:8080"
-# Secret partagé — injecté automatiquement par le superviseur via KUBUNO_INTERNAL_SECRET
+# Secret partagé - injecté automatiquement par le superviseur via KUBUNO_INTERNAL_SECRET
 internal_secret = "change_me"
 
 # ── Base de données ───────────────────────────────────────────────────────────

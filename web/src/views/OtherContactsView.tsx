@@ -6,8 +6,8 @@ import { contactsApi, type OtherContact } from '../api'
 import { useContactsStore } from '../store'
 
 /**
- * "Other contacts": people the user has actually dealt with — a mail
- * correspondent, someone met in a chat — who were never saved into the address
+ * "Other contacts": people the user has actually dealt with - a mail
+ * correspondent, someone met in a chat - who were never saved into the address
  * book. The list is fed by the modules that handle interlocutors; contacts only
  * keeps the memory and offers the two useful verdicts: keep, or stop suggesting.
  *

@@ -7,7 +7,7 @@ import { useContactsStore } from '../store'
 
 /**
  * Everyone in the signed-in user's own organisational unit (and its sub-units),
- * read from the CORE's governed directory — this module never keeps a copy of
+ * read from the CORE's governed directory - this module never keeps a copy of
  * the account list, so the instance's sharing policy always decides what is
  * visible. An instance with the directory closed simply shows nobody here.
  *

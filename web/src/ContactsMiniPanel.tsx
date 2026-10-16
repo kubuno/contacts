@@ -9,7 +9,7 @@ import { CONTACTS_BASE } from './hashRoute'
 import ContactAvatar from './ContactAvatar'
 
 /**
- * Contacts side panel — the companion you open while writing somewhere else.
+ * Contacts side panel - the companion you open while writing somewhere else.
  *
  * Deliberately not a second address book: no groups, no labels, no editing. A
  * search box, the starred contacts as a default list, and the two actions worth

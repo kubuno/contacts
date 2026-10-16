@@ -76,13 +76,13 @@ export function register() {
     },
   })
 
-  // What this module knows about a PERSON, offered to whoever shows one — a
+  // What this module knows about a PERSON, offered to whoever shows one - a
   // guest's card in the calendar today. The same shared-point bargain as the
   // mentions above: a generic key, no consumer named, and an instance without
   // contacts simply shows what the directory knows.
   //
   // Asked by address, because that is the one identifier every source shares.
-  // ⚠️ `register(point, moduleId, entry)` — le point d'abord.
+  // ⚠️ `register(point, moduleId, entry)` - le point d'abord.
   ExtensionRegistry.register('person.details', 'contacts', {
     async lookup(person: { email?: string; userId?: string }) {
       // By address when there is one, by ACCOUNT otherwise: an instance whose
@@ -108,14 +108,14 @@ export function register() {
       const a = (c.addresses ?? [])[0]
       if (a) add('address', [a.street, a.city, a.country].filter(Boolean).join(', '))
 
-      // A named address elsewhere — a site, a profile page.
+      // A named address elsewhere - a site, a profile page.
       const links = (c.urls ?? [])
         .filter(u => u.value?.trim())
         .slice(0, 2)
         .map(u => ({ label: u.label?.trim() || u.value.trim(), url: u.value.trim() }))
 
       return {
-        // The photo this module holds for them — chosen for this person, so it
+        // The photo this module holds for them - chosen for this person, so it
         // outranks the one derived from an account id.
         avatar: c.avatar_path ? contactsApi.avatarUrl(c.id) : undefined,
         details,
@@ -164,7 +164,7 @@ export function register() {
     collapsedBody: true,
     // Bottom nav (portrait) / left rail (landscape) on mobile: the primary
     // destinations, each a real route so the shell's NavLink can light the
-    // active tab (a hash cannot — every hash shares the /contacts pathname). The
+    // active tab (a hash cannot - every hash shares the /contacts pathname). The
     // secondary views (smart views, labels, groups, trash…) stay in the drawer.
     mobileTabs: [
       { id: 'all',       labelKey: 'contacts:title_all',       Icon: ContactsIcon, path: '/contacts',           end: true },

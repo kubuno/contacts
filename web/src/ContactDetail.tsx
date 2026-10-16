@@ -209,7 +209,7 @@ export default function ContactDetail({ contact }: { contact: Contact }) {
                 <div key={it.id} className="flex items-start gap-2 px-2">
                   <Clock size={13} className="text-text-secondary mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-text-primary capitalize">{it.interaction_type}{it.summary ? ` — ${it.summary}` : ''}</p>
+                    <p className="text-sm text-text-primary capitalize">{it.interaction_type}{it.summary ? ` - ${it.summary}` : ''}</p>
                     <p className="text-xs text-text-secondary">{new Date(it.occurred_at).toLocaleString()}</p>
                   </div>
                 </div>

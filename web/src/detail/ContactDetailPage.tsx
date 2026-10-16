@@ -9,7 +9,7 @@ import { contactsApi, type Contact } from '../api'
 import { CONTACTS_BASE } from '../hashRoute'
 
 /**
- * A contact on its own page, at `/contacts/person/<id>` — the way Google
+ * A contact on its own page, at `/contacts/person/<id>` - the way Google
  * Contacts does it, and the reason the old 380px band on the right is gone: a
  * contact card is a destination you go to and come back from, not a strip
  * squeezed beside the list. It gets the whole area, it has a real URL to share,

@@ -16,7 +16,7 @@ pub struct BulkDto {
     pub action: String,
 }
 
-/// POST /contacts/bulk — applies one action to many contacts at once.
+/// POST /contacts/bulk - applies one action to many contacts at once.
 pub async fn bulk(
     State(state): State<AppState>,
     Extension(user): Extension<ContactsUser>,

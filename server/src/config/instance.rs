@@ -7,8 +7,8 @@
 //!
 //! What is deliberately NOT here: the directory policy (who appears in the
 //! account directory, whether e-mail addresses are shared, which profile fields a
-//! user may edit). That policy belongs to the core — `directory.enabled`,
-//! `directory.share_email`, `directory.audience`, `directory.profile_edit_*` —
+//! user may edit). That policy belongs to the core - `directory.enabled`,
+//! `directory.share_email`, `directory.audience`, `directory.profile_edit_*` -
 //! and migration `000006` dropped this module's local mirror precisely because it
 //! bypassed it. A module must not re-implement it.
 

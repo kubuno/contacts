@@ -14,7 +14,7 @@ export default function ShareModal({ contactId, onClose }: { contactId: string; 
 
   // Instance policy: public links can be switched off, capped in duration, or
   // required to carry a password. Reflected here so the form never offers what
-  // the server refuses — the server still refuses it either way.
+  // the server refuses - the server still refuses it either way.
   const [cfg, setCfg] = useState<ContactsInstanceConfig | null>(null)
   useEffect(() => {
     let alive = true

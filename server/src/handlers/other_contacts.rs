@@ -30,7 +30,7 @@ pub async fn list(
     Ok(Json(json!({ "other_contacts": items })))
 }
 
-/// "Not interesting" — the suggestion stops being shown, and seeing the person
+/// "Not interesting" - the suggestion stops being shown, and seeing the person
 /// again will not bring it back.
 pub async fn dismiss(
     State(state): State<AppState>,
@@ -72,7 +72,7 @@ pub async fn save(
 
 #[derive(Deserialize)]
 pub struct SeenBody {
-    /// Which module saw them — recorded so the list can say where a name is from.
+    /// Which module saw them - recorded so the list can say where a name is from.
     pub module: String,
     pub seen:   Vec<svc::SeenInterlocutor>,
 }

@@ -30,7 +30,7 @@ export default function ContactEditor({ contact, onDone }: Props) {
   const f = useContactForm(contact, onDone)
   const [showMore, setShowMore] = useState(false)
 
-  // Name: two fields at rest, the rest folded behind the chevron — Google's
+  // Name: two fields at rest, the rest folded behind the chevron - Google's
   // split, mapped onto the fields this module actually stores. (Phonetic names
   // and "file as" have no column here, so they are absent rather than faked.)
   const NAME_FIELDS: GroupField[] = [
@@ -60,7 +60,7 @@ export default function ContactEditor({ contact, onDone }: Props) {
 
   return (
     // The form lives INSIDE the module's content area, like Google Contacts: the
-    // shell keeps its sidebar and header around it. It is not an overlay — the
+    // shell keeps its sidebar and header around it. It is not an overlay - the
     // editor is a view of this module, not a window on top of the application.
     <div className="h-full overflow-y-auto bg-white">
       {/* Left-aligned column, as Google lays it out: the form keeps a readable
@@ -74,7 +74,7 @@ export default function ContactEditor({ contact, onDone }: Props) {
             {isMobile ? <ArrowLeft size={22} /> : <X size={18} />}
           </button>
           <div className="flex-1" />
-          {/* Favourite, before the contact even exists — the flag travels with
+          {/* Favourite, before the contact even exists - the flag travels with
               the payload, so there is no "save then star" second step. */}
           <button type="button" onClick={() => f.setStarred(!f.starred)}
             title={f.starred ? t('ed_unstarred') : t('ed_starred')}

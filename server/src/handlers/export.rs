@@ -1,6 +1,6 @@
 //! **Implementation of the Kubuno module export contract, v1.**
 //!
-//! The core cannot read this module's PostgreSQL schema — no module's schema is
+//! The core cannot read this module's PostgreSQL schema - no module's schema is
 //! readable by the core, and that rule is what makes a module independently
 //! installable and removable. So when an administrator asks the console for an
 //! archive of an organisation's data, the core does not read: it asks. This file
@@ -8,10 +8,10 @@
 //!
 //! ## The two routes, verbatim
 //!
-//! * `GET /internal/export/describe` — what this module can export, and under
+//! * `GET /internal/export/describe` - what this module can export, and under
 //!   what directory name. Called on every page load of the console's export
 //!   page, so it touches no account's data.
-//! * `POST /internal/export/account` — everything held about one account, as a
+//! * `POST /internal/export/account` - everything held about one account, as a
 //!   ZIP whose entries are prefixed with the declared service id.
 //!
 //! Both are guarded by [`crate::middleware::require_internal_secret`]. A module
@@ -24,7 +24,7 @@
 //! the WebP files they are on disk. Not a dump of the `contacts.contacts` table:
 //! the point of an export is that it opens somewhere else, and a `.vcf` opens in
 //! every address book in existence while a JSON copy of this module's columns
-//! opens in exactly one. The rendering is [`crate::services::vcard_service`] —
+//! opens in exactly one. The rendering is [`crate::services::vcard_service`] -
 //! the same writer the user-facing "Exporter" button uses, so the two can never
 //! drift into producing different files.
 //!
@@ -34,7 +34,7 @@
 //!
 //! ## What never goes in
 //!
-//! `contacts.carddav_tokens` — a CardDAV token is a working credential for this
+//! `contacts.carddav_tokens` - a CardDAV token is a working credential for this
 //! address book, and an export is a file that leaves the server. `shares.token`
 //! and `shares.password_hash`, for the same reason: a share token still grants
 //! access to whoever holds it. The share *list* is exported without them, so the
@@ -168,7 +168,7 @@ pub async fn account(
 /// along in the JSON side-files so the reader can tell.
 async fn load_contacts(state: &AppState, owner: Uuid) -> Result<Vec<crate::models::contact::Contact>> {
     // `SELECT *` is safe here and only here: `contacts.contacts` holds no
-    // credential of any kind — the tokens live in `carddav_tokens` and
+    // credential of any kind - the tokens live in `carddav_tokens` and
     // `shares`, and neither is read by this file. Every other query below names
     // its columns, which is what keeps the next migration from quietly widening
     // the export.
@@ -187,7 +187,7 @@ async fn load_contacts(state: &AppState, owner: Uuid) -> Result<Vec<crate::model
 
 // The JSON side-files (`groupes.json`, …) used to be assembled by PostgreSQL's
 // `json_agg`, which no other engine has. They are now read as typed rows and the
-// JSON is built in Rust — same shape, portable.
+// JSON is built in Rust - same shape, portable.
 
 #[derive(sqlx::FromRow)]
 struct GroupExportRow {
@@ -388,7 +388,7 @@ async fn load_avatars(
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => tracing::warn!(
                 error = %e, contact_id = %contact.id,
-                "contacts: photo illisible — absente de l'archive d'export"
+                "contacts: photo illisible - absente de l'archive d'export"
             ),
         }
     }
@@ -398,8 +398,8 @@ async fn load_avatars(
 // ── The archive ──────────────────────────────────────────────────────────────
 
 /// Builds the ZIP the core expects: every entry under `contacts/`, relative,
-/// with no `..` anywhere. The core re-checks all of that — see
-/// `safe_entry_path` on its side — and an entry it refuses is reported in the
+/// with no `..` anywhere. The core re-checks all of that - see
+/// `safe_entry_path` on its side - and an entry it refuses is reported in the
 /// archive's manifest rather than silently dropped, so a mistake here is visible
 /// to the person receiving the file.
 #[allow(clippy::too_many_arguments)]
@@ -435,7 +435,7 @@ fn build_zip(
     // The reader's map of the folder, and the honest statement of what was left
     // out. Written last so it can count what actually went in.
     let readme = format!(
-        "CONTACTS — EXPORT DU CARNET D'ADRESSES\n\
+        "CONTACTS - EXPORT DU CARNET D'ADRESSES\n\
          ======================================\n\n\
          carnet.vcf       {count} fiche(s) au format vCard 4.0. Ce fichier s'importe\n\
                           dans tout carnet d'adresses (Thunderbird, iOS, Android…).\n\

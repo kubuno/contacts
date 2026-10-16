@@ -7,7 +7,7 @@ import { parsePhoneValue, formatPhoneValue, isPhoneEmpty, DEFAULT_COUNTRY } from
 
 /* Editor state and saving, kept out of the view so the form's shape is readable
  * on its own. Composite fields (phone, date) live here in their STRUCTURED form
- * — the shape their @ui component speaks — and are folded back into the strings
+ * - the shape their @ui component speaks - and are folded back into the strings
  * the API stores only at save time. */
 
 export interface EmailRow  { value: string; type: string }
@@ -25,7 +25,7 @@ export function useContactForm(contact: Contact | undefined, onDone: () => void)
   const otherDatesSrc = (contact?.dates ?? []).filter(d => d.type !== BIRTHDAY)
 
   const [form, setForm] = useState({
-    // Name — the two visible fields plus the ones folded behind the chevron.
+    // Name - the two visible fields plus the ones folded behind the chevron.
     given_name:   contact?.given_name ?? '',
     family_name:  contact?.family_name ?? '',
     middle_name:  contact?.middle_name ?? '',
@@ -77,7 +77,7 @@ export function useContactForm(contact: Contact | undefined, onDone: () => void)
   async function save() {
     setSaving(true)
     try {
-      // A date is kept only once it FORMATS — a day without its month yields no
+      // A date is kept only once it FORMATS - a day without its month yields no
       // usable value, and sending `null` is what the API rejects outright. The
       // emptiness check alone is not enough: a half-filled date is not empty.
       const bday = formatDateValue(birthday)

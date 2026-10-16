@@ -6,7 +6,7 @@ import type { Contact } from '../api'
 
 /**
  * A contact in the list view. Desktop lays name / email / phone across columns;
- * on a phone the columns collapse to a single stack — a taller row (better touch
+ * on a phone the columns collapse to a single stack - a taller row (better touch
  * target) with the email as a secondary line under the name, since the email and
  * phone columns are hidden.
  */

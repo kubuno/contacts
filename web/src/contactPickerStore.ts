@@ -5,7 +5,7 @@
  * `pickContact()` is parked in the store and settled by `_resolve()` when the
  * dialog closes. This lets ANY module (chat…) obtain a contact envelope through
  * `ModuleServiceRegistry.call('contacts', 'pickContact')` without ever importing
- * contacts' code — when contacts is not installed, the service is simply absent.
+ * contacts' code - when contacts is not installed, the service is simply absent.
  */
 import { create } from 'zustand'
 import type { KubunoDataEnvelope } from './kubunoData'

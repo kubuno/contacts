@@ -6,7 +6,7 @@ import ContactAvatar from '../ContactAvatar'
 import type { Contact } from '../api'
 
 /**
- * The photo at the head of the editor, at the size it has in Google Contacts —
+ * The photo at the head of the editor, at the size it has in Google Contacts -
  * large enough to be the subject of the form rather than a thumbnail. A round
  * "+" badge sits on its lower-right corner and carries the affordance on its
  * own, instead of a caption that only appears on hover (and never appears at all
@@ -14,8 +14,8 @@ import type { Contact } from '../api'
  *
  * The colour control is ours, not Google's: a contact with no photo is drawn from
  * its initials, and the colour is what tells two of them apart. It uses the
- * platform's own colour picker — full spectrum, harmonies and remembered custom
- * colours — instead of a handful of frozen swatches. Its `t` is left alone on
+ * platform's own colour picker - full spectrum, harmonies and remembered custom
+ * colours - instead of a handful of frozen swatches. Its `t` is left alone on
  * purpose: the picker ships its own labels, and handing it this module's
  * translator would make it print raw keys it has never heard of.
  */

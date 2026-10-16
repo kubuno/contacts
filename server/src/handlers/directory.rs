@@ -27,7 +27,7 @@ struct DirectoryUser {
 ///
 /// The person is resolved from the CORE, never from a local mirror. The core is
 /// the single source of truth for accounts, so the identity written here is the
-/// authoritative one — a client cannot make us store a name that does not match
+/// authoritative one - a client cannot make us store a name that does not match
 /// the id it points at.
 ///
 /// Browsing the directory itself is done by the frontend against the core's

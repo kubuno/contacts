@@ -61,7 +61,7 @@ struct SettingDefRaw {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     risk:        Option<String>,
     /// Bounds for `type = "int"`. Enforced by the core's API, not only drawn by
-    /// the console — a manifest that omits them accepts any number.
+    /// the console - a manifest that omits them accepts any number.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     min:         Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -216,7 +216,7 @@ async fn main() -> Result<()> {
         });
     }
 
-    // Worker de rappels (anniversaires / relances) — notifie l'utilisateur via le core.
+    // Worker de rappels (anniversaires / relances) - notifie l'utilisateur via le core.
     {
         let worker_db       = state.db.clone();
         let worker_settings = settings.clone();
@@ -240,11 +240,11 @@ async fn main() -> Result<()> {
                 match http2.post(&url).header("X-Internal-Secret", secret.as_str()).send().await {
                     Ok(r) if r.status().is_success() => {}
                     Ok(r) if r.status() == reqwest::StatusCode::NOT_FOUND => {
-                        tracing::info!("Heartbeat 404 — ré-enregistrement…");
+                        tracing::info!("Heartbeat 404 - ré-enregistrement…");
                         register_with_core(&http2, &settings2).await;
                     }
                     Ok(r) if r.status() == reqwest::StatusCode::FORBIDDEN => {
-                        tracing::info!("Heartbeat 403 — module désactivé, attente…");
+                        tracing::info!("Heartbeat 403 - module désactivé, attente…");
                     }
                     Ok(r)  => tracing::warn!(status = %r.status(), "Heartbeat réponse inattendue"),
                     Err(e) => tracing::warn!(error = %e, "Heartbeat erreur réseau"),

@@ -10,7 +10,7 @@ import type { CustomField } from '../api'
 /**
  * The fields folded behind "Plus": extra dates, websites, related people and
  * free-form custom fields. They are real parts of the record, just rarely filled
- * — showing them all at rest would bury the fields that matter.
+ * - showing them all at rest would bury the fields that matter.
  */
 export default function MoreFields({
   dates, setDates, urls, setUrls, relations, setRelations, custom, setCustom, accent, wide,

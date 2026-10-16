@@ -22,7 +22,7 @@ pub async fn list_labels(db: &DbPool, owner_id: Uuid) -> Result<Vec<Label>> {
     .map_err(ContactsError::Database)
 }
 
-/// Reselects one label with its (non-trashed) contact count — the portable
+/// Reselects one label with its (non-trashed) contact count - the portable
 /// stand-in for `RETURNING`.
 async fn select_label(db: &DbPool, owner_id: Uuid, label_id: Uuid) -> Result<Label> {
     db.fetch_optional_as::<Label>(
@@ -49,7 +49,7 @@ pub async fn create_label(db: &DbPool, owner_id: Uuid, dto: &CreateLabelDto) -> 
     // same table in an INSERT is rejected by MySQL).
     // The next position. `MAX(position) + 1` is cast to one portable width:
     // PostgreSQL keeps int4 (an i64 decode would fail), MySQL widens MAX and the
-    // arithmetic to BIGINT, and SQLite is dynamic — the cast pins a single
+    // arithmetic to BIGINT, and SQLite is dynamic - the cast pins a single
     // decodable type across all three. COALESCE covers the empty table (0).
     let position: i32 = db
         .fetch_scalar::<i64>(

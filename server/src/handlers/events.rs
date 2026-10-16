@@ -45,7 +45,7 @@ struct ReportedInterlocutor {
 ///
 /// `<module>.interlocutor` is what fills "Other contacts". The exchange goes
 /// through the CORE's bus rather than a direct call, so mail and chat need to
-/// know nothing about this module — they publish that they dealt with someone,
+/// know nothing about this module - they publish that they dealt with someone,
 /// and an instance without an address book simply has no subscriber.
 pub async fn handle_event(
     State(state): State<AppState>,

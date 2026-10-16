@@ -10,11 +10,11 @@ const LABEL_COLORS = ['#1a73e8', '#e8710a', '#1e8e3e', '#d93025', '#9334e6', '#1
 /**
  * The "+ Libellé" chip. Labels are membership rather than a column, so the form
  * only collects the chosen ids and applies the difference once the contact
- * exists — a brand-new contact has no id to attach a label to yet.
+ * exists - a brand-new contact has no id to attach a label to yet.
  *
  * The chip is ALWAYS offered, even on an instance with no label at all: its menu
  * ends with "create a label", which turns into an inline name field (Google's
- * flow is exactly that — type a name, save). Hiding the chip when the list is
+ * flow is exactly that - type a name, save). Hiding the chip when the list is
  * empty would leave a new user with no way in from here.
  */
 export default function LabelPicker({ selected, onChange }: {

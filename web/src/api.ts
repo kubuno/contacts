@@ -64,7 +64,7 @@ export interface Contact {
   import_source: string
   created_at: string
   updated_at: string
-  /** Present on list responses (flattened) — ids of attached labels. */
+  /** Present on list responses (flattened) - ids of attached labels. */
   label_ids?: string[]
 }
 
@@ -334,7 +334,7 @@ export const contactsApi = {
     apiClient.post<{ contact: Contact }>(`${BASE}/other-contacts/${id}/save`),
 
   /** Members of the caller's own organisational unit, from the CORE's governed
-   *  directory — `scope=unit` narrows to that unit whatever the instance
+   *  directory - `scope=unit` narrows to that unit whatever the instance
    *  audience policy is, and the sharing policy still applies first. */
   listUnitMembers: async (q = ''): Promise<DirectoryProfile[]> => {
     const { data } = await apiClient.get<{ users: DirectoryUser[] }>('/users/search', {

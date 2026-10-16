@@ -6,7 +6,7 @@
 //! The change feed comes from `kubuno_db::journal::changes_since` (the portable
 //! `live UNION ALL tombstones`, replacing the PostgreSQL-only sequence/trigger
 //! delta layer). Row bodies are reselected as typed structs and serialised in
-//! Rust — no `to_jsonb`.
+//! Rust - no `to_jsonb`.
 
 use axum::{
     extract::{Query, State},

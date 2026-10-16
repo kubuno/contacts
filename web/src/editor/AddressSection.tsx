@@ -6,7 +6,7 @@ import AddAction from './AddAction'
 import type { AddressField } from '../api'
 
 /** Postal addresses. An address is several sub-fields, so each one is a stacked
- *  block under the pin icon — the same shape the Name and Organisation groups
+ *  block under the pin icon - the same shape the Name and Organisation groups
  *  use, minus the chevron (every part of an address is worth showing). */
 export default function AddressSection({ rows, onChange, accent }: {
   rows:     AddressField[]
